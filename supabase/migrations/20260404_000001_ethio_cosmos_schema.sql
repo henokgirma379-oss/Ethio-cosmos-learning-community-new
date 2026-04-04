@@ -1,0 +1,161 @@
+-- Ethio-Cosmos Learning Community schema and policies
+-- Generated from project blueprint on 2026-04-04
+
+create extension if not exists pgcrypto;
+
+create table if not exists public.profiles (
+  id uuid references auth.users on delete cascade primary key,
+  username text,
+  avatar_url text,
+  role text default 'user' check (role in ('user', 'admin')),
+  created_at timestamptz default now()
+);
+
+create table if not exists public.messages (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade,
+  content text,
+  image_url text,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.online_presence (
+  id uuid references auth.users on delete cascade primary key,
+  last_seen timestamptz default now()
+);
+
+create table if not exists public.topics (
+  id uuid default gen_random_uuid() primary key,
+  slug text unique not null,
+  title text not null,
+  description text,
+  difficulty text check (difficulty in ('Beginner', 'Intermediate', 'Advanced')),
+  lesson_count int default 0,
+  icon text,
+  color_accent text,
+  order_index int default 0
+);
+
+create table if not exists public.lessons (
+  id uuid default gen_random_uuid() primary key,
+  topic_id uuid references public.topics(id) on delete cascade,
+  slug text not null,
+  title text not null,
+  content text,
+  order_index int default 0,
+  duration_minutes int default 10
+);
+
+create table if not exists public.page_content (
+  id serial primary key,
+  page text not null,
+  section text not null,
+  content_type text check (content_type in ('text', 'image')),
+  content text,
+  image_url text,
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.materials (
+  id uuid default gen_random_uuid() primary key,
+  type text check (type in ('image', 'video', 'pdf')),
+  title text not null,
+  url text not null,
+  thumbnail_url text,
+  created_at timestamptz default now()
+);
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+as $$
+begin
+  insert into public.profiles (id, username, role)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    case when new.email = 'henokgirma648@gmail.com' then 'admin' else 'user' end
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute procedure public.handle_new_user();
+
+alter table public.profiles enable row level security;
+alter table public.messages enable row level security;
+alter table public.online_presence enable row level security;
+alter table public.page_content enable row level security;
+alter table public.materials enable row level security;
+alter table public.topics enable row level security;
+alter table public.lessons enable row level security;
+
+drop policy if exists "profiles_read_all" on public.profiles;
+create policy "profiles_read_all" on public.profiles for select using (true);
+
+drop policy if exists "profiles_update_own" on public.profiles;
+create policy "profiles_update_own" on public.profiles for update using (auth.uid() = id);
+
+drop policy if exists "messages_read" on public.messages;
+create policy "messages_read" on public.messages for select using (true);
+
+drop policy if exists "messages_insert" on public.messages;
+create policy "messages_insert" on public.messages for insert with check (auth.uid() = user_id);
+
+drop policy if exists "messages_delete" on public.messages;
+create policy "messages_delete" on public.messages for delete using (
+  auth.uid() = user_id or
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+
+drop policy if exists "presence_read" on public.online_presence;
+create policy "presence_read" on public.online_presence for select using (true);
+
+drop policy if exists "presence_upsert" on public.online_presence;
+create policy "presence_upsert" on public.online_presence for all using (auth.uid() = id) with check (auth.uid() = id);
+
+drop policy if exists "content_read" on public.page_content;
+create policy "content_read" on public.page_content for select using (true);
+
+drop policy if exists "content_write" on public.page_content;
+create policy "content_write" on public.page_content for all using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+) with check (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+
+drop policy if exists "materials_read" on public.materials;
+create policy "materials_read" on public.materials for select using (true);
+
+drop policy if exists "materials_write" on public.materials;
+create policy "materials_write" on public.materials for all using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+) with check (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+
+drop policy if exists "topics_read" on public.topics;
+create policy "topics_read" on public.topics for select using (true);
+
+drop policy if exists "topics_write" on public.topics;
+create policy "topics_write" on public.topics for all using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+) with check (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+
+drop policy if exists "lessons_read" on public.lessons;
+create policy "lessons_read" on public.lessons for select using (true);
+
+drop policy if exists "lessons_write" on public.lessons;
+create policy "lessons_write" on public.lessons for all using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+) with check (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
