@@ -163,37 +163,59 @@ export const fallbackAboutContent: Record<string, PageContent[]> = {
   ],
 }
 
+const svgDataUri = (label: string, colors: { start: string; end: string; accent: string }) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+    <defs>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="${colors.start}" />
+        <stop offset="100%" stop-color="${colors.end}" />
+      </linearGradient>
+    </defs>
+    <rect width="1200" height="800" fill="url(#bg)" />
+    <circle cx="950" cy="140" r="90" fill="${colors.accent}" fill-opacity="0.35" />
+    <circle cx="240" cy="600" r="130" fill="#ffffff" fill-opacity="0.08" />
+    <circle cx="540" cy="260" r="6" fill="#ffffff" />
+    <circle cx="690" cy="320" r="4" fill="#ffffff" />
+    <circle cx="740" cy="160" r="3" fill="#ffffff" />
+    <circle cx="210" cy="210" r="5" fill="#ffffff" />
+    <text x="80" y="690" fill="#eaf6ff" font-size="72" font-family="Arial, sans-serif" font-weight="700">${label}</text>
+    <text x="80" y="748" fill="#9ccfe0" font-size="30" font-family="Arial, sans-serif">Ethio-Cosmos Learning Community</text>
+  </svg>`
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+}
+
 export const fallbackMaterials: Material[] = [
   {
     id: 'm1',
     type: 'image',
     title: 'Nebula Concept Art',
-    url: 'https://picsum.photos/seed/ethio-cosmos-nebula/1200/800',
-    thumbnail_url: 'https://picsum.photos/seed/ethio-cosmos-nebula/600/400',
+    url: svgDataUri('Nebula Concept Art', { start: '#050a1a', end: '#1c2d5b', accent: '#7c5cbf' }),
+    thumbnail_url: svgDataUri('Nebula Concept Art', { start: '#050a1a', end: '#1c2d5b', accent: '#7c5cbf' }),
     created_at: new Date().toISOString(),
   },
   {
     id: 'm2',
     type: 'image',
     title: 'Moon Observation Concept',
-    url: 'https://picsum.photos/seed/ethio-cosmos-moon/1200/800',
-    thumbnail_url: 'https://picsum.photos/seed/ethio-cosmos-moon/600/400',
+    url: svgDataUri('Moon Observation Concept', { start: '#0a1628', end: '#223a6b', accent: '#f5c542' }),
+    thumbnail_url: svgDataUri('Moon Observation Concept', { start: '#0a1628', end: '#223a6b', accent: '#f5c542' }),
     created_at: new Date().toISOString(),
   },
   {
     id: 'm3',
     type: 'image',
     title: 'Starscape Study Visual',
-    url: 'https://picsum.photos/seed/ethio-cosmos-stars/1200/800',
-    thumbnail_url: 'https://picsum.photos/seed/ethio-cosmos-stars/600/400',
+    url: svgDataUri('Starscape Study Visual', { start: '#050a1a', end: '#153047', accent: '#00c8c8' }),
+    thumbnail_url: svgDataUri('Starscape Study Visual', { start: '#050a1a', end: '#153047', accent: '#00c8c8' }),
     created_at: new Date().toISOString(),
   },
   {
     id: 'm4',
     type: 'image',
     title: 'Observatory Illustration',
-    url: 'https://picsum.photos/seed/ethio-cosmos-observatory/1200/800',
-    thumbnail_url: 'https://picsum.photos/seed/ethio-cosmos-observatory/600/400',
+    url: svgDataUri('Observatory Illustration', { start: '#081120', end: '#2a1d52', accent: '#00c8c8' }),
+    thumbnail_url: svgDataUri('Observatory Illustration', { start: '#081120', end: '#2a1d52', accent: '#00c8c8' }),
     created_at: new Date().toISOString(),
   },
   {
@@ -201,7 +223,7 @@ export const fallbackMaterials: Material[] = [
     type: 'video',
     title: 'Introduction to Stargazing',
     url: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    thumbnail_url: 'https://picsum.photos/seed/ethio-cosmos-video/800/500',
+    thumbnail_url: svgDataUri('Introduction to Stargazing', { start: '#071325', end: '#123f5b', accent: '#00c8c8' }),
     created_at: new Date().toISOString(),
   },
   {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
@@ -103,7 +103,18 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const groupedMessages = useMemo(() => messages, [messages])
+  const groupedMessages = useMemo(() => {
+    return messages.reduce<Array<{ dateLabel: string; items: Message[] }>>((groups, message) => {
+      const dateLabel = new Date(message.created_at).toLocaleDateString()
+      const existingGroup = groups[groups.length - 1]
+      if (existingGroup && existingGroup.dateLabel === dateLabel) {
+        existingGroup.items.push(message)
+        return groups
+      }
+      groups.push({ dateLabel, items: [message] })
+      return groups
+    }, [])
+  }, [messages])
 
   const handleSend = async () => {
     if (!profile || (!input.trim() && !imagePreview)) return
@@ -218,28 +229,37 @@ export default function ChatPage() {
 
           <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
             {groupedMessages.length ? (
-              groupedMessages.map((message) => {
-                const own = message.user_id === profile.id
-                return (
-                  <div key={message.id} className={`max-w-3xl rounded-2xl p-4 ${own ? 'ml-auto bg-navy' : 'bg-deep-navy border border-white/5'}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/20 text-teal">
-                        {(message.profiles?.username ?? 'U')[0]}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-white">{message.profiles?.username ?? 'Community Member'}</div>
-                        <div className="text-xs text-slate-400">{new Date(message.created_at).toLocaleString()}</div>
-                      </div>
-                    </div>
-                    {message.content && <p className="mt-4 text-slate-200">{message.content}</p>}
-                    {message.image_url && (
-                      <button className="mt-4" onClick={() => setLightbox(message.image_url!)}>
-                        <img src={message.image_url} alt="Shared upload" className="max-w-xs rounded-2xl" />
-                      </button>
-                    )}
+              groupedMessages.map((group) => (
+                <Fragment key={group.dateLabel}>
+                  <div className="flex items-center gap-4 py-2 text-xs uppercase tracking-[0.25em] text-slate-500">
+                    <div className="h-px flex-1 bg-white/10" />
+                    <span>{group.dateLabel}</span>
+                    <div className="h-px flex-1 bg-white/10" />
                   </div>
-                )
-              })
+                  {group.items.map((message) => {
+                    const own = message.user_id === profile.id
+                    return (
+                      <div key={message.id} className={`max-w-3xl rounded-2xl p-4 ${own ? 'ml-auto bg-navy' : 'border border-white/5 bg-deep-navy'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/20 text-teal">
+                            {(message.profiles?.username ?? 'U')[0]}
+                          </div>
+                          <div>
+                            <div className="font-semibold text-white">{message.profiles?.username ?? 'Community Member'}</div>
+                            <div className="text-xs text-slate-400">{new Date(message.created_at).toLocaleString()}</div>
+                          </div>
+                        </div>
+                        {message.content && <p className="mt-4 text-slate-200">{message.content}</p>}
+                        {message.image_url && (
+                          <button className="mt-4" onClick={() => setLightbox(message.image_url!)}>
+                            <img src={message.image_url} alt="Shared upload" className="max-w-xs rounded-2xl" />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </Fragment>
+              ))
             ) : (
               <div className="rounded-2xl border border-dashed border-white/10 bg-navy/40 p-8 text-center text-slate-400">
                 No messages yet. Be the first to say hello!
