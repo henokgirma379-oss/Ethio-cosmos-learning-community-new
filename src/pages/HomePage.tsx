@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import FeatureCard from '../components/FeatureCard'
 import Footer from '../components/Footer'
@@ -97,12 +98,12 @@ export default function HomePage() {
               Learn astronomy, track celestial events, and connect with fellow stargazers across Africa through an inspiring, community-driven platform.
             </p>
             <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
-              <a
-                href="/learning"
+              <Link
+                to="/learning"
                 className="rounded-lg bg-teal px-8 py-3 font-semibold text-slate-950 transition-all duration-200 hover:scale-[1.02] hover:brightness-110"
               >
                 Begin Your Journey
-              </a>
+              </Link>
               <a
                 href="#why-ethio-cosmos"
                 className="rounded-lg border border-teal px-8 py-3 font-semibold text-teal transition-all duration-200 hover:scale-[1.02] hover:bg-teal/10"
