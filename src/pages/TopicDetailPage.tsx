@@ -19,13 +19,20 @@ export default function TopicDetailPage() {
   const { slug = '' } = useParams()
   const [topic, setTopic] = useState<Topic | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
+  const [loading, setLoading] = useState(true)
   const [loginOpen, setLoginOpen] = useState(false)
 
   useEffect(() => {
+    setLoading(true)
     void getTopicBySlug(slug).then((topicData) => {
       setTopic(topicData)
       if (topicData) {
-        void getLessonsByTopicId(topicData.id).then(setLessons)
+        void getLessonsByTopicId(topicData.id).then((lessonData) => {
+          setLessons(lessonData)
+          setLoading(false)
+        })
+      } else {
+        setLoading(false)
       }
     })
   }, [slug])
@@ -39,7 +46,14 @@ export default function TopicDetailPage() {
       <main className="relative z-10 mx-auto max-w-6xl animate-fadeIn px-6 pb-20 pt-20">
         <Link to="/learning" className="inline-flex items-center gap-2 text-sm text-teal">← Back to learning</Link>
 
-        {topic ? (
+        {loading ? (
+          <div className="mt-6 animate-pulse space-y-4">
+            <div className="h-10 w-2/3 rounded-2xl bg-deep-navy" />
+            <div className="h-48 rounded-3xl bg-deep-navy" />
+            <div className="h-16 rounded-2xl bg-deep-navy" />
+            <div className="h-16 rounded-2xl bg-deep-navy" />
+          </div>
+        ) : topic ? (
           <>
             <section className="rounded-3xl border border-teal/20 bg-deep-navy/80 p-8 mt-6">
               <div className="text-5xl">{topic.icon}</div>

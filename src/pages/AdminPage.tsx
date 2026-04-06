@@ -28,7 +28,7 @@ const missionFallback = 'Update mission text here...'
 const whoWeAreFallback = 'Update who-we-are content here...'
 
 export default function AdminPage() {
-  const { isAdmin, profile } = useAuth()
+  const { isAdmin } = useAuth()
   const [activeTab, setActiveTab] = useState<AdminTab>('About Page Content')
   const [loginOpen, setLoginOpen] = useState(false)
   const [missionText, setMissionText] = useState(missionFallback)

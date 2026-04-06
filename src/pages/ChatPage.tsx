@@ -75,11 +75,6 @@ export default function ChatPage() {
 
     const updatePresence = async () => {
       if (!supabase) return
-
-      await supabase
-        .from('online_presence')
-        .upsert({ id: profile.id, last_seen: new Date().toISOString() })
-
       const online = await getOnlineProfiles()
       if (!mounted) return
       setOnlineUsers(online)
