@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
@@ -116,9 +117,9 @@ export default function AboutPage() {
             <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-slate-200">
               Step into a growing astronomy learning movement and explore the universe with fellow dreamers and doers.
             </p>
-            <a href="/learning" className="mt-8 inline-block rounded-lg bg-teal px-10 py-4 text-lg font-semibold text-slate-950">
+            <Link to="/learning" className="mt-8 inline-block rounded-lg bg-teal px-10 py-4 text-lg font-semibold text-slate-950">
               Get Started
-            </a>
+            </Link>
           </div>
         </section>
       </main>
