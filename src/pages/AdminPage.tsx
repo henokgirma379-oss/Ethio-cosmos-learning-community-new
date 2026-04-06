@@ -8,7 +8,7 @@ import StarField from '../components/StarField'
 import { useAuth } from '../context/AuthContext'
 import { fallbackTopics } from '../data/fallbackData'
 import { supabase } from '../lib/supabase'
-import type { Lesson, Message, PageContent, Topic } from '../types'
+import type { Lesson, Material, Message, PageContent, Topic } from '../types'
 
 const links = [
   { label: 'Home', path: '/' },
@@ -43,7 +43,17 @@ export default function AdminPage() {
   const [lessonTitle, setLessonTitle] = useState('')
   const [lessonContent, setLessonContent] = useState('')
   const [showLessonEditor, setShowLessonEditor] = useState(false)
+  const [showNewTopicForm, setShowNewTopicForm] = useState(false)
+  const [newTopicTitle, setNewTopicTitle] = useState('')
+  const [newTopicDescription, setNewTopicDescription] = useState('')
+  const [newTopicDifficulty, setNewTopicDifficulty] = useState<Topic['difficulty']>('Beginner')
+  const [newTopicIcon, setNewTopicIcon] = useState('✨')
+  const [showNewLessonForm, setShowNewLessonForm] = useState(false)
+  const [newLessonTitle, setNewLessonTitle] = useState('')
+  const [newLessonContent, setNewLessonContent] = useState('')
+  const [newLessonDuration, setNewLessonDuration] = useState(10)
   const [moderationMessages, setModerationMessages] = useState<ModerationMessage[]>([])
+  const [materials, setMaterials] = useState<Material[]>([])
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const pdfInputRef = useRef<HTMLInputElement | null>(null)
@@ -57,6 +67,15 @@ export default function AdminPage() {
     () => lessons.find((item) => item.id === selectedLessonId) ?? lessons[0] ?? null,
     [lessons, selectedLessonId],
   )
+
+  const generateSlug = (title: string): string =>
+    title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -122,9 +141,7 @@ export default function AdminPage() {
       })
     }
 
-    if (activeTab === 'Topic Manager') {
-      void loadLessons()
-    }
+    if (activeTab === 'Topic Manager') { void loadLessons() }
   }, [activeTab, currentTopic])
 
   useEffect(() => {
@@ -133,7 +150,6 @@ export default function AdminPage() {
       setLessonContent('')
       return
     }
-
     setLessonTitle(selectedLesson.title)
     setLessonContent(selectedLesson.content ?? '')
   }, [selectedLesson])
@@ -144,24 +160,31 @@ export default function AdminPage() {
         setModerationMessages([])
         return
       }
-
       const { data, error } = await supabase
         .from('messages')
         .select('*, profiles(username)')
         .order('created_at', { ascending: false })
         .limit(50)
-
       if (error) {
         toast.error(error.message)
         return
       }
-
       setModerationMessages((data as ModerationMessage[] | null) ?? [])
     }
+    if (activeTab === 'Chat Moderation') { void loadModerationMessages() }
+  }, [activeTab])
 
-    if (activeTab === 'Chat Moderation') {
-      void loadModerationMessages()
+  useEffect(() => {
+    const loadMaterials = async () => {
+      if (!supabase) { setMaterials([]); return }
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) { toast.error(error.message); return }
+      setMaterials((data as Material[] | null) ?? [])
     }
+    if (activeTab === 'Materials Manager') { void loadMaterials() }
   }, [activeTab])
 
   const requireSupabaseWrite = () => {
@@ -176,22 +199,11 @@ export default function AdminPage() {
     const { error } = await supabase
       .from('page_content')
       .upsert(
-        {
-          page: 'about',
-          section,
-          content_type: 'text',
-          content,
-          image_url: null,
-          updated_at: new Date().toISOString(),
-        },
+        { page: 'about', section, content_type: 'text', content, image_url: null, updated_at: new Date().toISOString() },
         { onConflict: 'page,section' },
       )
 
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-
+    if (error) { toast.error(error.message); return }
     toast.success(successMessage)
   }
 
@@ -201,20 +213,67 @@ export default function AdminPage() {
 
     const { error } = await supabase
       .from('topics')
-      .update({
-        title: topicTitle,
-        description: topicDescription,
-        difficulty: topicDifficulty,
-      })
+      .update({ title: topicTitle, description: topicDescription, difficulty: topicDifficulty })
       .eq('id', currentTopic.id)
 
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-
-    setTopics((prev) => prev.map((topic) => (topic.id === currentTopic.id ? { ...topic, title: topicTitle, description: topicDescription, difficulty: topicDifficulty } : topic)))
+    if (error) { toast.error(error.message); return }
+    setTopics((prev) => prev.map((topic) =>
+      topic.id === currentTopic.id
+        ? { ...topic, title: topicTitle, description: topicDescription, difficulty: topicDifficulty }
+        : topic,
+    ))
     toast.success('Topic saved.')
+  }
+
+  const handleAddTopic = async () => {
+    if (!newTopicTitle.trim()) { toast.error('Topic title is required.'); return }
+    if (!newTopicDescription.trim()) { toast.error('Topic description is required.'); return }
+    if (!newTopicIcon.trim()) { toast.error('Topic icon is required.'); return }
+    if (!requireSupabaseWrite() || !supabase) return
+    const slug = generateSlug(newTopicTitle)
+    if (!slug) { toast.error('Title produced an invalid slug. Use letters and numbers.'); return }
+    const maxOrderIndex = topics.reduce((max, topic) => Math.max(max, topic.order_index), 0)
+    const { data, error } = await supabase
+      .from('topics')
+      .insert({
+        slug,
+        title: newTopicTitle.trim(),
+        description: newTopicDescription.trim(),
+        difficulty: newTopicDifficulty,
+        icon: newTopicIcon.trim(),
+        color_accent: '#00c8c8',
+        order_index: maxOrderIndex + 1,
+        lesson_count: 0,
+      })
+      .select()
+      .single()
+    if (error) { toast.error(error.message); return }
+    const inserted = data as Topic
+    setTopics((prev) => [...prev, inserted])
+    setSelectedTopic(inserted.slug)
+    setNewTopicTitle('')
+    setNewTopicDescription('')
+    setNewTopicDifficulty('Beginner')
+    setNewTopicIcon('✨')
+    setShowNewTopicForm(false)
+    toast.success('Topic created.')
+  }
+
+  const handleDeleteTopic = async () => {
+    if (!currentTopic) return
+    if (!requireSupabaseWrite() || !supabase) return
+    const confirmed = window.confirm(
+      `Delete "${currentTopic.title}"? This will permanently delete all its lessons and student progress. This cannot be undone.`,
+    )
+    if (!confirmed) return
+    const { error } = await supabase.from('topics').delete().eq('id', currentTopic.id)
+    if (error) { toast.error(error.message); return }
+    const remaining = topics.filter((topic) => topic.id !== currentTopic.id)
+    setTopics(remaining)
+    setSelectedTopic(remaining[0]?.slug ?? '')
+    setLessons([])
+    setSelectedLessonId('')
+    toast.success('Topic deleted.')
   }
 
   const handleSaveLesson = async () => {
@@ -223,19 +282,83 @@ export default function AdminPage() {
 
     const { error } = await supabase
       .from('lessons')
-      .update({
-        title: lessonTitle,
-        content: lessonContent,
-      })
+      .update({ title: lessonTitle, content: lessonContent })
       .eq('id', selectedLesson.id)
 
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-
-    setLessons((prev) => prev.map((item) => (item.id === selectedLesson.id ? { ...item, title: lessonTitle, content: lessonContent } : item)))
+    if (error) { toast.error(error.message); return }
+    setLessons((prev) => prev.map((item) =>
+      item.id === selectedLesson.id ? { ...item, title: lessonTitle, content: lessonContent } : item,
+    ))
     toast.success('Lesson saved.')
+  }
+
+  const handleAddLesson = async () => {
+    if (!currentTopic) return
+    if (!newLessonTitle.trim()) { toast.error('Lesson title is required.'); return }
+    if (!newLessonContent.trim()) { toast.error('Lesson content is required.'); return }
+    if (!requireSupabaseWrite() || !supabase) return
+    const slug = generateSlug(newLessonTitle)
+    if (!slug) { toast.error('Title produced an invalid slug. Use letters and numbers.'); return }
+    const maxOrderIndex = lessons.reduce((max, lesson) => Math.max(max, lesson.order_index), 0)
+    const { data, error } = await supabase
+      .from('lessons')
+      .insert({
+        topic_id: currentTopic.id,
+        slug,
+        title: newLessonTitle.trim(),
+        content: newLessonContent.trim(),
+        order_index: maxOrderIndex + 1,
+        duration_minutes: newLessonDuration > 0 ? newLessonDuration : 10,
+      })
+      .select()
+      .single()
+    if (error) { toast.error(error.message); return }
+    const inserted = data as Lesson
+    setLessons((prev) => [...prev, inserted])
+    setSelectedLessonId(inserted.id)
+    await supabase
+      .from('topics')
+      .update({ lesson_count: currentTopic.lesson_count + 1 })
+      .eq('id', currentTopic.id)
+    setTopics((prev) =>
+      prev.map((topic) =>
+        topic.id === currentTopic.id
+          ? { ...topic, lesson_count: topic.lesson_count + 1 }
+          : topic,
+      ),
+    )
+    setNewLessonTitle('')
+    setNewLessonContent('')
+    setNewLessonDuration(10)
+    setShowNewLessonForm(false)
+    toast.success('Lesson created.')
+  }
+
+  const handleDeleteLesson = async () => {
+    if (!selectedLesson || !currentTopic) return
+    if (!requireSupabaseWrite() || !supabase) return
+    const confirmed = window.confirm(
+      `Delete lesson "${selectedLesson.title}"? Student progress for this lesson will also be deleted. This cannot be undone.`,
+    )
+    if (!confirmed) return
+    const { error } = await supabase.from('lessons').delete().eq('id', selectedLesson.id)
+    if (error) { toast.error(error.message); return }
+    const remaining = lessons.filter((item) => item.id !== selectedLesson.id)
+    setLessons(remaining)
+    setSelectedLessonId(remaining[0]?.id ?? '')
+    const newCount = Math.max(0, currentTopic.lesson_count - 1)
+    await supabase
+      .from('topics')
+      .update({ lesson_count: newCount })
+      .eq('id', currentTopic.id)
+    setTopics((prev) =>
+      prev.map((topic) =>
+        topic.id === currentTopic.id
+          ? { ...topic, lesson_count: newCount }
+          : topic,
+      ),
+    )
+    toast.success('Lesson deleted.')
   }
 
   const handleMaterialUpload = async (file: File | undefined, type: MaterialType) => {
@@ -247,7 +370,6 @@ export default function AdminPage() {
       const path = `${type}/${Date.now()}-${file.name.replace(/\s+/g, '-')}`
       const { data, error } = await supabase.storage.from('materials').upload(path, file, { upsert: true, contentType: file.type || undefined })
       if (error) throw error
-
       const { data: publicUrlData } = supabase.storage.from('materials').getPublicUrl(data.path)
       const title = file.name.replace(new RegExp(`\\.${extension}$`), '')
       const { error: insertError } = await supabase.from('materials').insert({
@@ -256,9 +378,16 @@ export default function AdminPage() {
         url: publicUrlData.publicUrl,
         thumbnail_url: type === 'image' ? publicUrlData.publicUrl : null,
       })
-
       if (insertError) throw insertError
       toast.success(`${type.toUpperCase()} uploaded successfully.`)
+      const { data: newMaterialData } = await supabase
+        .from('materials')
+        .select('*')
+        .eq('url', publicUrlData.publicUrl)
+        .single()
+      if (newMaterialData) {
+        setMaterials((prev) => [newMaterialData as Material, ...prev])
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : `Failed to upload ${type}.`)
     }
@@ -277,6 +406,22 @@ export default function AdminPage() {
     toast.success('Message removed.')
   }
 
+  const handleDeleteMaterial = async (material: Material) => {
+    if (!requireSupabaseWrite() || !supabase) return
+    try {
+      const storagePath = material.url.split('/storage/v1/object/public/materials/')[1]
+      if (storagePath) {
+        await supabase.storage.from('materials').remove([storagePath])
+      }
+      const { error } = await supabase.from('materials').delete().eq('id', material.id)
+      if (error) throw error
+      setMaterials((prev) => prev.filter((item) => item.id !== material.id))
+      toast.success('Material deleted.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete material.')
+    }
+  }
+
   if (!isAdmin) return <Navigate to="/" replace />
 
   return (
@@ -284,7 +429,6 @@ export default function AdminPage() {
       <StarField />
       <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
-
       <main className="relative z-10 mx-auto grid min-h-screen max-w-7xl animate-fadeIn gap-6 px-6 pb-10 pt-20 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-3xl border border-white/10 bg-deep-navy/90 p-5">
           <h1 className="font-display text-2xl text-white">Admin Panel</h1>
@@ -300,10 +444,8 @@ export default function AdminPage() {
             ))}
           </div>
         </aside>
-
         <section className="rounded-3xl border border-white/10 bg-deep-navy/90 p-6">
           <h2 className="font-display text-3xl text-white">{activeTab}</h2>
-
           {activeTab === 'About Page Content' && (
             <div className="mt-8 space-y-8">
               <div className="rounded-2xl bg-navy/60 p-5">
@@ -318,7 +460,6 @@ export default function AdminPage() {
               </div>
             </div>
           )}
-
           {activeTab === 'Materials Manager' && (
             <div className="mt-8 space-y-6">
               <div className="rounded-2xl bg-navy/60 p-5 text-slate-300">
@@ -332,9 +473,27 @@ export default function AdminPage() {
                 <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={(event) => void handleMaterialUpload(event.target.files?.[0], 'video')} />
                 <input ref={pdfInputRef} type="file" accept="application/pdf" className="hidden" onChange={(event) => void handleMaterialUpload(event.target.files?.[0], 'pdf')} />
               </div>
+              {materials.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-semibold text-white">Uploaded Materials</h3>
+                  {materials.map((material) => (
+                    <div key={material.id} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-deep-navy/70 px-5 py-4">
+                      <div>
+                        <div className="font-semibold text-white">{material.title}</div>
+                        <div className="mt-1 text-xs uppercase tracking-widest text-slate-400">{material.type}</div>
+                      </div>
+                      <button
+                        onClick={() => void handleDeleteMaterial(material)}
+                        className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-slate-300 hover:border-red-500/50 hover:text-red-400"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-
           {activeTab === 'Chat Moderation' && (
             <div className="mt-8 space-y-4">
               <div className="rounded-2xl bg-navy/60 p-5 text-slate-300">
@@ -358,16 +517,56 @@ export default function AdminPage() {
               )}
             </div>
           )}
-
           {activeTab === 'Topic Manager' && currentTopic && (
             <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
-              <div className="rounded-2xl bg-navy/60 p-5">
-                <label className="block text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Select Topic</label>
-                <select value={selectedTopic} onChange={(event) => setSelectedTopic(event.target.value)} className="mt-4 w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal">
-                  {topics.map((topic) => (
-                    <option key={topic.id} value={topic.slug}>{topic.title}</option>
-                  ))}
-                </select>
+              <div className="space-y-4">
+                <div className="rounded-2xl bg-navy/60 p-5">
+                  <label className="block text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Select Topic</label>
+                  <select value={selectedTopic} onChange={(event) => setSelectedTopic(event.target.value)} className="mt-4 w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal">
+                    {topics.map((topic) => (
+                      <option key={topic.id} value={topic.slug}>{topic.title}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setShowNewTopicForm((prev) => !prev)}
+                    className="mt-4 w-full rounded-2xl border border-teal/30 bg-teal/10 px-4 py-3 text-sm font-semibold text-teal"
+                  >
+                    {showNewTopicForm ? 'Cancel New Topic' : '+ Add New Topic'}
+                  </button>
+                </div>
+                {showNewTopicForm && (
+                  <div className="space-y-3 rounded-2xl border border-white/10 bg-deep-navy/70 p-5">
+                    <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">New Topic</h4>
+                    <input
+                      value={newTopicTitle}
+                      onChange={(event) => setNewTopicTitle(event.target.value)}
+                      placeholder="Title"
+                      className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
+                    />
+                    <textarea
+                      value={newTopicDescription}
+                      onChange={(event) => setNewTopicDescription(event.target.value)}
+                      placeholder="Description"
+                      className="h-24 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal"
+                    />
+                    <input
+                      value={newTopicIcon}
+                      onChange={(event) => setNewTopicIcon(event.target.value)}
+                      placeholder="Icon emoji e.g. ✨"
+                      className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
+                    />
+                    <select
+                      value={newTopicDifficulty}
+                      onChange={(event) => setNewTopicDifficulty(event.target.value as Topic['difficulty'])}
+                      className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
+                    >
+                      <option value="Beginner">Beginner</option>
+                      <option value="Intermediate">Intermediate</option>
+                      <option value="Advanced">Advanced</option>
+                    </select>
+                    <button onClick={() => void handleAddTopic()} className="w-full rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">Create Topic</button>
+                  </div>
+                )}
               </div>
               <div className="rounded-2xl bg-navy/60 p-5 text-slate-300">
                 <input value={topicTitle} onChange={(event) => setTopicTitle(event.target.value)} className="w-full bg-transparent text-xl font-semibold text-white outline-none" />
@@ -383,24 +582,64 @@ export default function AdminPage() {
                 <div className="mt-6 flex flex-wrap gap-3">
                   <button onClick={() => void handleSaveTopic()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">Save Topic</button>
                   <button onClick={() => setShowLessonEditor((prev) => !prev)} className="rounded-lg border border-white/10 px-5 py-3 font-semibold text-slate-200">Manage Lessons</button>
+                  <button onClick={() => void handleDeleteTopic()} className="rounded-lg border border-red-500/30 px-5 py-3 font-semibold text-red-400 hover:bg-red-500/10">Delete Topic</button>
                 </div>
-
                 {showLessonEditor && (
                   <div className="mt-6 space-y-4 rounded-2xl border border-white/10 bg-deep-navy/70 p-5">
-                    <label className="block text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Select Lesson</label>
-                    <select value={selectedLessonId} onChange={(event) => setSelectedLessonId(event.target.value)} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal">
-                      {lessons.map((item) => (
-                        <option key={item.id} value={item.id}>{item.title}</option>
-                      ))}
-                    </select>
-                    {selectedLesson ? (
-                      <>
-                        <input value={lessonTitle} onChange={(event) => setLessonTitle(event.target.value)} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
-                        <textarea value={lessonContent} onChange={(event) => setLessonContent(event.target.value)} className="h-48 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-white outline-none focus:border-teal" />
-                        <button onClick={() => void handleSaveLesson()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">Save Lesson</button>
-                      </>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Select Lesson</label>
+                      <button
+                        onClick={() => setShowNewLessonForm((prev) => !prev)}
+                        className="rounded-xl border border-teal/30 bg-teal/10 px-3 py-1 text-xs font-semibold text-teal"
+                      >
+                        {showNewLessonForm ? 'Cancel' : '+ New Lesson'}
+                      </button>
+                    </div>
+                    {showNewLessonForm ? (
+                      <div className="space-y-3 rounded-2xl border border-white/10 bg-navy/60 p-4">
+                        <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">New Lesson</h4>
+                        <input
+                          value={newLessonTitle}
+                          onChange={(event) => setNewLessonTitle(event.target.value)}
+                          placeholder="Lesson title"
+                          className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
+                        />
+                        <textarea
+                          value={newLessonContent}
+                          onChange={(event) => setNewLessonContent(event.target.value)}
+                          placeholder="Lesson content (supports # headings, ## subheadings, - list items)"
+                          className="h-40 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal"
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          value={newLessonDuration}
+                          onChange={(event) => setNewLessonDuration(Number(event.target.value))}
+                          placeholder="Duration (minutes)"
+                          className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
+                        />
+                        <button onClick={() => void handleAddLesson()} className="w-full rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">Create Lesson</button>
+                      </div>
                     ) : (
-                      <div className="text-sm text-slate-400">No lessons found for this topic.</div>
+                      <>
+                        <select value={selectedLessonId} onChange={(event) => setSelectedLessonId(event.target.value)} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal">
+                          {lessons.map((item) => (
+                            <option key={item.id} value={item.id}>{item.title}</option>
+                          ))}
+                        </select>
+                        {selectedLesson ? (
+                          <>
+                            <input value={lessonTitle} onChange={(event) => setLessonTitle(event.target.value)} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                            <textarea value={lessonContent} onChange={(event) => setLessonContent(event.target.value)} className="h-48 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-white outline-none focus:border-teal" />
+                            <div className="flex flex-wrap gap-3">
+                              <button onClick={() => void handleSaveLesson()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">Save Lesson</button>
+                              <button onClick={() => void handleDeleteLesson()} className="rounded-lg border border-red-500/30 px-5 py-3 font-semibold text-red-400 hover:bg-red-500/10">Delete Lesson</button>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-sm text-slate-400">No lessons found for this topic.</div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
