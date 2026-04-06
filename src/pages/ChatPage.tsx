@@ -64,6 +64,8 @@ export default function ChatPage() {
     if (!profile) return
 
     let mounted = true
+    let presenceInterval: ReturnType<typeof setInterval> | null = null
+
     const loadData = async () => {
       const [chatMessages, online] = await Promise.all([getRecentMessages(), getOnlineProfiles()])
       if (!mounted) return
@@ -71,11 +73,30 @@ export default function ChatPage() {
       setOnlineUsers(online)
     }
 
+    const updatePresence = async () => {
+      if (!supabase) return
+
+      await supabase
+        .from('online_presence')
+        .upsert({ id: profile.id, last_seen: new Date().toISOString() })
+
+      const online = await getOnlineProfiles()
+      if (!mounted) return
+      setOnlineUsers(online)
+    }
+
     void loadData()
 
-    if (!supabase) return () => {
-      mounted = false
+    if (!supabase) {
+      return () => {
+        mounted = false
+      }
     }
+
+    void updatePresence()
+    presenceInterval = setInterval(() => {
+      void updatePresence()
+    }, 60_000)
 
     const supabaseClient = supabase
     const channel = supabaseClient
@@ -95,6 +116,7 @@ export default function ChatPage() {
 
     return () => {
       mounted = false
+      if (presenceInterval) clearInterval(presenceInterval)
       void supabaseClient.removeChannel(channel)
     }
   }, [profile])
@@ -251,7 +273,7 @@ export default function ChatPage() {
                         </div>
                         {message.content && <p className="mt-4 text-slate-200">{message.content}</p>}
                         {message.image_url && (
-                          <button className="mt-4" onClick={() => setLightbox(message.image_url!)}>
+                          <button className="mt-4" onClick={() => setLightbox(message.image_url)}>
                             <img src={message.image_url} alt="Shared upload" className="max-w-xs rounded-2xl" />
                           </button>
                         )}

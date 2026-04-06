@@ -159,3 +159,22 @@ create policy "lessons_write" on public.lessons for all using (
 ) with check (
   (select role from public.profiles where id = auth.uid()) = 'admin'
 );
+
+create table if not exists public.user_progress (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade,
+  lesson_id uuid references public.lessons(id) on delete cascade,
+  completed_at timestamptz default now(),
+  unique(user_id, lesson_id)
+);
+
+alter table public.user_progress enable row level security;
+
+drop policy if exists "progress_read_own" on public.user_progress;
+create policy "progress_read_own" on public.user_progress for select using (auth.uid() = user_id);
+
+drop policy if exists "progress_insert_own" on public.user_progress;
+create policy "progress_insert_own" on public.user_progress for insert with check (auth.uid() = user_id);
+
+drop policy if exists "progress_delete_own" on public.user_progress;
+create policy "progress_delete_own" on public.user_progress for delete using (auth.uid() = user_id);
