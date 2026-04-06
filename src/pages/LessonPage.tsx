@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
 import StarField from '../components/StarField'
-import { getLessonBySlugs } from '../lib/api'
+import { useAuth } from '../context/AuthContext'
+import { getCompletedLessonIds, getLessonBySlugs, markLessonComplete } from '../lib/api'
 import type { Lesson, Topic } from '../types'
 
 const links = [
@@ -26,10 +28,12 @@ function renderContent(content: string) {
 }
 
 export default function LessonPage() {
+  const { user } = useAuth()
   const { slug = '', lessonSlug = '' } = useParams()
   const [topic, setTopic] = useState<Topic | null>(null)
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
+  const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([])
   const [loginOpen, setLoginOpen] = useState(false)
 
   useEffect(() => {
@@ -40,9 +44,28 @@ export default function LessonPage() {
     })
   }, [slug, lessonSlug])
 
+  useEffect(() => {
+    if (!user) {
+      setCompletedLessonIds([])
+      return
+    }
+
+    void getCompletedLessonIds(user.id).then((ids) => {
+      setCompletedLessonIds(ids)
+    })
+  }, [user])
+
   const currentIndex = useMemo(() => lessons.findIndex((item) => item.slug === lessonSlug), [lessons, lessonSlug])
   const previousLesson = currentIndex > 0 ? lessons[currentIndex - 1] : null
   const nextLesson = currentIndex >= 0 && currentIndex < lessons.length - 1 ? lessons[currentIndex + 1] : null
+  const isCompleted = lesson ? completedLessonIds.includes(lesson.id) : false
+
+  const handleMarkComplete = async () => {
+    if (!user || !lesson || isCompleted) return
+    await markLessonComplete(user.id, lesson.id)
+    setCompletedLessonIds((prev) => (prev.includes(lesson.id) ? prev : [...prev, lesson.id]))
+    toast.success('Lesson marked as complete!')
+  }
 
   return (
     <div className="relative min-h-screen bg-space-black text-white">
@@ -64,6 +87,19 @@ export default function LessonPage() {
                 {topic.title}
               </div>
               <div className="space-y-2">{renderContent(lesson.content)}</div>
+              {user && (
+                <div className="mt-8">
+                  {isCompleted ? (
+                    <button disabled className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">
+                      ✓ Completed
+                    </button>
+                  ) : (
+                    <button onClick={() => void handleMarkComplete()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">
+                      ✓ Mark as Complete
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:justify-between">
                 {previousLesson ? (
                   <Link to={`/learning/${slug}/${previousLesson.slug}`} className="rounded-lg border border-white/10 px-5 py-3 text-slate-300 hover:border-teal/30 hover:text-teal">
@@ -81,15 +117,18 @@ export default function LessonPage() {
             <aside className="rounded-3xl border border-white/5 bg-deep-navy/90 p-6 lg:sticky lg:top-24 lg:h-fit">
               <h3 className="font-display text-xl text-white">Topic Lessons</h3>
               <div className="mt-4 space-y-3">
-                {lessons.map((item, index) => (
-                  <Link
-                    key={item.id}
-                    to={`/learning/${slug}/${item.slug}`}
-                    className={`block rounded-xl px-4 py-3 text-sm transition ${item.slug === lesson.slug ? 'bg-teal/10 text-teal' : 'bg-navy/60 text-slate-300 hover:text-teal'}`}
-                  >
-                    {index + 1}. {item.title}
-                  </Link>
-                ))}
+                {lessons.map((item, index) => {
+                  const itemCompleted = completedLessonIds.includes(item.id)
+                  return (
+                    <Link
+                      key={item.id}
+                      to={`/learning/${slug}/${item.slug}`}
+                      className={`block rounded-xl px-4 py-3 text-sm transition ${item.slug === lesson.slug ? 'bg-teal/10 text-teal' : 'bg-navy/60 text-slate-300 hover:text-teal'}`}
+                    >
+                      {index + 1}. {item.title}{itemCompleted ? ' ✓' : ''}
+                    </Link>
+                  )
+                })}
               </div>
             </aside>
           </div>

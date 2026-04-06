@@ -107,3 +107,19 @@ export async function getOnlineProfiles(): Promise<Profile[]> {
   const rows = (data ?? []) as Array<{ profiles: Profile[] | null }>
   return rows.flatMap((entry) => entry.profiles ?? [])
 }
+
+export async function getCompletedLessonIds(userId: string): Promise<string[]> {
+  if (!supabase) return []
+  const { data } = await supabase
+    .from('user_progress')
+    .select('lesson_id')
+    .eq('user_id', userId)
+  return (data ?? []).map((row: { lesson_id: string }) => row.lesson_id)
+}
+
+export async function markLessonComplete(userId: string, lessonId: string): Promise<void> {
+  if (!supabase) return
+  await supabase
+    .from('user_progress')
+    .upsert({ user_id: userId, lesson_id: lessonId })
+}
