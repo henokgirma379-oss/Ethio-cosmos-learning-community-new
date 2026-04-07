@@ -14,6 +14,7 @@ import NotFoundPage from './pages/NotFoundPage'
 import ResourcesPage from './pages/ResourcesPage'
 import ScientistsPage from './pages/ScientistsPage'
 import TopicDetailPage from './pages/TopicDetailPage'
+import QuizPage from './pages/QuizPage'
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/learning" element={<LearningPage />} />
           <Route path="/learning/:slug" element={<TopicDetailPage />} />
           <Route path="/learning/:slug/:lessonSlug" element={<LessonPage />} />
+          <Route path="/learning/:slug/quiz" element={<QuizPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/materials" element={<MaterialsPage />} />
           <Route path="/chat" element={<ChatPage />} />

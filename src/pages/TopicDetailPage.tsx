@@ -4,7 +4,7 @@ import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
 import StarField from '../components/StarField'
-import { getLessonsByTopicId, getTopicBySlug } from '../lib/api'
+import { getLessonsByTopicId, getQuizQuestionCount, getTopicBySlug } from '../lib/api'
 import type { Lesson, Topic } from '../types'
 
 const links = [
@@ -20,6 +20,7 @@ export default function TopicDetailPage() {
   const [topic, setTopic] = useState<Topic | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [loading, setLoading] = useState(true)
+  const [quizCount, setQuizCount] = useState(0)
   const [loginOpen, setLoginOpen] = useState(false)
 
   useEffect(() => {
@@ -27,11 +28,14 @@ export default function TopicDetailPage() {
     void getTopicBySlug(slug).then((topicData) => {
       setTopic(topicData)
       if (topicData) {
-        void getLessonsByTopicId(topicData.id).then((lessonData) => {
+        void getLessonsByTopicId(topicData.id).then(async (lessonData) => {
           setLessons(lessonData)
+          const qCount = await getQuizQuestionCount(topicData.id)
+          setQuizCount(qCount)
           setLoading(false)
         })
       } else {
+        setQuizCount(0)
         setLoading(false)
       }
     })
@@ -80,6 +84,21 @@ export default function TopicDetailPage() {
                 </Link>
               ))}
             </section>
+            {quizCount > 0 && (
+              <div className="mt-8 rounded-3xl border border-teal/20 bg-deep-navy/80 p-8 text-center">
+                <div className="text-4xl">🧠</div>
+                <h2 className="mt-4 font-display text-2xl text-white">Test Your Knowledge</h2>
+                <p className="mt-3 text-slate-300">
+                  This topic has {quizCount} question{quizCount !== 1 ? 's' : ''}. Take the quiz to check your understanding.
+                </p>
+                <Link
+                  to={`/learning/${slug}/quiz`}
+                  className="mt-6 inline-block rounded-lg bg-teal px-8 py-3 font-semibold text-slate-950"
+                >
+                  Take Quiz
+                </Link>
+              </div>
+            )}
           </>
         ) : (
           <div className="mt-10 rounded-2xl bg-deep-navy p-8 text-slate-300">Topic not found.</div>

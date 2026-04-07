@@ -60,3 +60,25 @@ export interface OnlinePresence {
   id: string
   last_seen: string
 }
+
+export interface QuizQuestion {
+  id: string
+  topic_id: string
+  question: string
+  option_a: string
+  option_b: string
+  option_c: string
+  option_d: string
+  correct_option: 'a' | 'b' | 'c' | 'd'
+  order_index: number
+  created_at: string
+}
+
+export interface QuizAttempt {
+  id: string
+  user_id: string
+  topic_id: string
+  score: number
+  total: number
+  attempted_at: string
+}

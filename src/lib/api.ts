@@ -1,5 +1,5 @@
 import { fallbackAboutContent, fallbackLessons, fallbackMaterials, fallbackTopics } from '../data/fallbackData'
-import type { Lesson, Material, Message, PageContent, Profile, Topic } from '../types'
+import type { Lesson, Material, Message, PageContent, Profile, QuizAttempt, QuizQuestion, Topic } from '../types'
 import { supabase } from './supabase'
 
 const wait = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -122,4 +122,55 @@ export async function markLessonComplete(userId: string, lessonId: string): Prom
   await supabase
     .from('user_progress')
     .upsert({ user_id: userId, lesson_id: lessonId })
+}
+
+export async function getCompletedLessonCount(userId: string): Promise<number> {
+  if (!supabase) return 0
+  const { count } = await supabase
+    .from('user_progress')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  return count ?? 0
+}
+
+export async function getQuizQuestions(topicId: string): Promise<QuizQuestion[]> {
+  if (!supabase) return []
+  const { data } = await supabase
+    .from('quiz_questions')
+    .select('*')
+    .eq('topic_id', topicId)
+    .order('order_index')
+  return (data as QuizQuestion[] | null) ?? []
+}
+
+export async function getQuizAttempt(userId: string, topicId: string): Promise<QuizAttempt | null> {
+  if (!supabase) return null
+  const { data } = await supabase
+    .from('quiz_attempts')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('topic_id', topicId)
+    .order('attempted_at', { ascending: false })
+    .limit(1)
+    .single()
+  return (data as QuizAttempt | null) ?? null
+}
+
+export async function saveQuizAttempt(
+  userId: string,
+  topicId: string,
+  score: number,
+  total: number,
+): Promise<void> {
+  if (!supabase) return
+  await supabase.from('quiz_attempts').insert({ user_id: userId, topic_id: topicId, score, total })
+}
+
+export async function getQuizQuestionCount(topicId: string): Promise<number> {
+  if (!supabase) return 0
+  const { count } = await supabase
+    .from('quiz_questions')
+    .select('*', { count: 'exact', head: true })
+    .eq('topic_id', topicId)
+  return count ?? 0
 }
