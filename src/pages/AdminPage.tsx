@@ -8,7 +8,7 @@ import StarField from '../components/StarField'
 import { useAuth } from '../context/AuthContext'
 import { fallbackTopics } from '../data/fallbackData'
 import { supabase } from '../lib/supabase'
-import type { Lesson, Material, Message, PageContent, Topic } from '../types'
+import type { Lesson, Material, Message, PageContent, QuizQuestion, Topic } from '../types'
 
 const links = [
   { label: 'Home', path: '/' },
@@ -18,7 +18,7 @@ const links = [
   { label: 'About', path: '/about' },
 ]
 
-const tabs = ['About Page Content', 'Materials Manager', 'Chat Moderation', 'Topic Manager'] as const
+const tabs = ['About Page Content', 'Materials Manager', 'Chat Moderation', 'Topic Manager', 'Quiz Manager'] as const
 
 type AdminTab = (typeof tabs)[number]
 type MaterialType = 'image' | 'video' | 'pdf'
@@ -57,6 +57,13 @@ export default function AdminPage() {
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const pdfInputRef = useRef<HTMLInputElement | null>(null)
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([])
+  const [newQuestion, setNewQuestion] = useState('')
+  const [newOptionA, setNewOptionA] = useState('')
+  const [newOptionB, setNewOptionB] = useState('')
+  const [newOptionC, setNewOptionC] = useState('')
+  const [newOptionD, setNewOptionD] = useState('')
+  const [newCorrectOption, setNewCorrectOption] = useState<QuizQuestion['correct_option']>('a')
 
   const currentTopic = useMemo(
     () => topics.find((topic) => topic.slug === selectedTopic) ?? topics[0] ?? fallbackTopics[0],
@@ -186,6 +193,20 @@ export default function AdminPage() {
     }
     if (activeTab === 'Materials Manager') { void loadMaterials() }
   }, [activeTab])
+
+  useEffect(() => {
+    const loadQuizQuestions = async () => {
+      if (!currentTopic || !supabase) { setQuizQuestions([]); return }
+      const { data, error } = await supabase
+        .from('quiz_questions')
+        .select('*')
+        .eq('topic_id', currentTopic.id)
+        .order('order_index')
+      if (error) { toast.error(error.message); return }
+      setQuizQuestions((data as QuizQuestion[] | null) ?? [])
+    }
+    if (activeTab === 'Quiz Manager') { void loadQuizQuestions() }
+  }, [activeTab, currentTopic])
 
   const requireSupabaseWrite = () => {
     if (supabase) return true
@@ -422,6 +443,48 @@ export default function AdminPage() {
     }
   }
 
+  const handleAddQuizQuestion = async () => {
+    if (!currentTopic) return
+    if (!newQuestion.trim()) { toast.error('Question text is required.'); return }
+    if (!newOptionA.trim() || !newOptionB.trim() || !newOptionC.trim() || !newOptionD.trim()) {
+      toast.error('All four answer options are required.')
+      return
+    }
+    if (!requireSupabaseWrite() || !supabase) return
+    const maxOrderIndex = quizQuestions.reduce((max, q) => Math.max(max, q.order_index), 0)
+    const { data, error } = await supabase
+      .from('quiz_questions')
+      .insert({
+        topic_id: currentTopic.id,
+        question: newQuestion.trim(),
+        option_a: newOptionA.trim(),
+        option_b: newOptionB.trim(),
+        option_c: newOptionC.trim(),
+        option_d: newOptionD.trim(),
+        correct_option: newCorrectOption,
+        order_index: maxOrderIndex + 1,
+      })
+      .select()
+      .single()
+    if (error) { toast.error(error.message); return }
+    setQuizQuestions((prev) => [...prev, data as QuizQuestion])
+    setNewQuestion('')
+    setNewOptionA('')
+    setNewOptionB('')
+    setNewOptionC('')
+    setNewOptionD('')
+    setNewCorrectOption('a')
+    toast.success('Question added.')
+  }
+
+  const handleDeleteQuizQuestion = async (questionId: string) => {
+    if (!requireSupabaseWrite() || !supabase) return
+    const { error } = await supabase.from('quiz_questions').delete().eq('id', questionId)
+    if (error) { toast.error(error.message); return }
+    setQuizQuestions((prev) => prev.filter((q) => q.id !== questionId))
+    toast.success('Question deleted.')
+  }
+
   if (!isAdmin) return <Navigate to="/" replace />
 
   return (
@@ -641,6 +704,86 @@ export default function AdminPage() {
                         )}
                       </>
                     )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {activeTab === 'Quiz Manager' && (
+            <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
+              <div className="rounded-2xl bg-navy/60 p-5">
+                <label className="block text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Select Topic</label>
+                <select
+                  value={selectedTopic}
+                  onChange={(event) => setSelectedTopic(event.target.value)}
+                  className="mt-4 w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
+                >
+                  {topics.map((topic) => (
+                    <option key={topic.id} value={topic.slug}>{topic.title}</option>
+                  ))}
+                </select>
+                <div className="mt-4 text-sm text-slate-400">
+                  {quizQuestions.length} question{quizQuestions.length !== 1 ? 's' : ''} in this topic
+                </div>
+              </div>
+              <div className="space-y-6">
+                <div className="rounded-2xl bg-navy/60 p-5 space-y-4">
+                  <h3 className="text-lg font-semibold text-white">Add New Question</h3>
+                  <textarea
+                    value={newQuestion}
+                    onChange={(event) => setNewQuestion(event.target.value)}
+                    placeholder="Question text"
+                    className="h-20 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-white outline-none focus:border-teal"
+                  />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={newOptionA} onChange={(event) => setNewOptionA(event.target.value)} placeholder="Option A" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
+                    <input value={newOptionB} onChange={(event) => setNewOptionB(event.target.value)} placeholder="Option B" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
+                    <input value={newOptionC} onChange={(event) => setNewOptionC(event.target.value)} placeholder="Option C" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
+                    <input value={newOptionD} onChange={(event) => setNewOptionD(event.target.value)} placeholder="Option D" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <label className="text-sm text-slate-400">Correct answer:</label>
+                    <select
+                      value={newCorrectOption}
+                      onChange={(event) => setNewCorrectOption(event.target.value as QuizQuestion['correct_option'])}
+                      className="rounded-xl border border-white/10 bg-deep-navy px-4 py-2 text-white outline-none focus:border-teal"
+                    >
+                      <option value="a">A</option>
+                      <option value="b">B</option>
+                      <option value="c">C</option>
+                      <option value="d">D</option>
+                    </select>
+                  </div>
+                  <button onClick={() => void handleAddQuizQuestion()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">
+                    Add Question
+                  </button>
+                </div>
+                {quizQuestions.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-semibold text-white">Existing Questions</h3>
+                    {quizQuestions.map((q, index) => (
+                      <div key={q.id} className="rounded-2xl border border-white/10 bg-deep-navy/70 p-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="text-sm font-semibold uppercase tracking-widest text-slate-400">Q{index + 1}</div>
+                            <div className="mt-1 text-white">{q.question}</div>
+                            <div className="mt-3 grid gap-1 text-sm">
+                              {(['a', 'b', 'c', 'd'] as const).map((opt) => (
+                                <div key={opt} className={`rounded-lg px-3 py-1.5 ${q.correct_option === opt ? 'bg-teal/20 text-teal' : 'text-slate-400'}`}>
+                                  <span className="font-semibold uppercase">{opt}.</span> {q[`option_${opt}` as keyof QuizQuestion] as string}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => void handleDeleteQuizQuestion(q.id)}
+                            className="flex-shrink-0 rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-slate-400 hover:border-red-500/30 hover:text-red-400"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
