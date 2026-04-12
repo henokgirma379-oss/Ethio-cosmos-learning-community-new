@@ -49,6 +49,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const updatePresence = async (userId: string) => {
+    if (!supabase) return
+    await supabase
+      .from('online_presence')
+      .upsert({ id: userId, last_seen: new Date().toISOString() })
+  }
+
   useEffect(() => {
     if (!supabase) {
       setLoading(false)
@@ -61,7 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
+      if (session?.user) {
+        fetchProfile(session.user.id)
+        void updatePresence(session.user.id)
+      }
       setLoading(false)
     })
 
@@ -72,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(nextSession?.user ?? null)
       if (nextSession?.user) {
         void fetchProfile(nextSession.user.id)
+        void updatePresence(nextSession.user.id)
       } else {
         setProfile(null)
         setAuthMessage(supabaseConfigError)
@@ -79,7 +90,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    let heartbeat: ReturnType<typeof setInterval> | null = null
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (s?.user) {
+        heartbeat = setInterval(() => {
+          void updatePresence(s.user.id)
+        }, 90_000)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+      if (heartbeat) clearInterval(heartbeat)
+    }
   }, [])
 
   const signInWithGoogle = async () => {

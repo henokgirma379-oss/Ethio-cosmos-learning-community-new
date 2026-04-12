@@ -1,141 +1,85 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
-import StarField from '../components/StarField'
-import { getResources } from '../lib/api'
-import type { Resource } from '../types'
 
 const links = [
   { label: 'Home', path: '/' },
   { label: 'Learning', path: '/learning' },
-  { label: 'Articles', path: '/articles' },
-  { label: 'Resources', path: '/resources' },
+  { label: 'Materials', path: '/materials' },
+  { label: 'Chat', path: '/chat' },
   { label: 'About', path: '/about' },
 ]
 
-const typeIcons: Record<string, string> = {
-  book: '📚',
-  video: '🎥',
-  website: '🌐',
-  pdf: '📄',
-  tool: '🛠️',
-}
+const resources = [
+  { category: 'Books', icon: '📖', items: [
+    { title: 'Cosmos by Carl Sagan', description: 'A timeless introduction to the universe for every age.', link: 'https://www.goodreads.com/book/show/55030.Cosmos' },
+    { title: 'A Brief History of Time', description: 'Stephen Hawking explains black holes, the Big Bang, and time itself.', link: 'https://www.goodreads.com/book/show/3869.A_Brief_History_of_Time' },
+    { title: 'Astrophysics for People in a Hurry', description: 'Neil deGrasse Tyson makes the universe digestible in one sitting.', link: 'https://www.goodreads.com/book/show/32191710-astrophysics-for-people-in-a-hurry' },
+  ]},
+  { category: 'Websites', icon: '🌐', items: [
+    { title: 'NASA Astronomy Picture of the Day', description: 'Daily stunning space images with expert explanations.', link: 'https://apod.nasa.gov' },
+    { title: 'Sky & Telescope', description: 'News, guides, and tools for stargazers worldwide.', link: 'https://skyandtelescope.org' },
+    { title: 'Stellarium Web', description: 'Free online planetarium — see tonight\'s sky from any location.', link: 'https://stellarium-web.org' },
+  ]},
+  { category: 'Tools', icon: '🔭', items: [
+    { title: 'Heavens Above', description: 'Real-time satellite tracking, ISS passes, and sky charts.', link: 'https://heavens-above.com' },
+    { title: 'Celestia', description: 'Free 3D space simulator for exploring the universe at any scale.', link: 'https://celestia.space' },
+    { title: 'WorldWide Telescope', description: 'NASA-backed interactive telescope viewer with guided tours.', link: 'https://worldwidetelescope.org' },
+  ]},
+]
 
 export default function ResourcesPage() {
-  const [resources, setResources] = useState<Resource[]>([])
-  const [loading, setLoading] = useState(true)
   const [loginOpen, setLoginOpen] = useState(false)
-  const [selectedType, setSelectedType] = useState<string | null>(null)
-
-  useEffect(() => {
-    const loadResources = async () => {
-      try {
-        const data = await getResources()
-        setResources(data)
-      } catch (error) {
-        console.error('Failed to load resources:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadResources()
-  }, [])
-
-  const types = Array.from(new Set(resources.map((r) => r.type)))
-  const filteredResources = selectedType
-    ? resources.filter((r) => r.type === selectedType)
-    : resources
 
   return (
-    <div className="relative min-h-screen bg-space-black text-white">
-      <StarField />
-      <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+    <div
+      className="relative min-h-screen text-white"
+      style={{
+        backgroundImage: 'url(/topic_nebulae.svg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+      }}
+    >
+      <div className="fixed inset-0 z-0 bg-black/55" />
+      <div className="relative z-10">
+        <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
+        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
-      <main className="relative z-10 mx-auto max-w-7xl animate-fadeIn px-6 pb-20 pt-24">
-        <section className="mb-16">
-          <div className="inline-flex rounded-full border border-teal/30 bg-teal/10 px-4 py-2 text-sm text-teal">
-            Learning Resources
-          </div>
-          <h1 className="mt-6 font-display text-4xl text-white sm:text-5xl">
-            Curated Tools & Materials for Astronomy Learning
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-            Explore a collection of books, videos, websites, and tools recommended by astronomy educators and enthusiasts.
-          </p>
-        </section>
+        <main className="mx-auto max-w-5xl animate-fadeIn px-6 pb-24 pt-28">
+          <h1 className="font-display text-5xl font-extrabold text-white">Learning Resources</h1>
+          <div className="mt-2 h-1 w-16 rounded-full bg-teal" />
+          <p className="mt-4 text-slate-300">Curated books, websites, and tools to deepen your astronomy knowledge.</p>
 
-        {types.length > 0 && (
-          <section className="mb-12">
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => setSelectedType(null)}
-                className={`rounded-full px-4 py-2 font-semibold transition-all ${
-                  selectedType === null
-                    ? 'bg-teal text-slate-950'
-                    : 'border border-white/20 text-slate-300 hover:border-teal/40 hover:text-teal'
-                }`}
-              >
-                All Resources
-              </button>
-              {types.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  className={`rounded-full px-4 py-2 font-semibold transition-all ${
-                    selectedType === type
-                      ? 'bg-teal text-slate-950'
-                      : 'border border-white/20 text-slate-300 hover:border-teal/40 hover:text-teal'
-                  }`}
-                >
-                  {typeIcons[type]} {type.charAt(0).toUpperCase() + type.slice(1)}
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {loading ? (
-          <div className="grid gap-6 md:grid-cols-2">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 animate-pulse rounded-3xl bg-deep-navy/50" />
+          <div className="mt-12 space-y-14">
+            {resources.map((group) => (
+              <div key={group.category}>
+                <h2 className="flex items-center gap-3 font-display text-2xl font-bold text-white">
+                  <span>{group.icon}</span> {group.category}
+                </h2>
+                <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                  {group.items.map((item) => (
+                    <a
+                      key={item.title}
+                      href={item.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block rounded-2xl border border-white/10 bg-[#0a1628]/80 p-5 backdrop-blur-sm transition hover:border-teal/40 hover:shadow-[0_0_20px_rgba(0,200,200,0.1)]"
+                    >
+                      <h3 className="font-semibold text-white">{item.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">{item.description}</p>
+                      <div className="mt-4 text-sm font-semibold text-teal">Visit →</div>
+                    </a>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        ) : (
-          <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredResources.map((resource) => (
-              <a
-                key={resource.id}
-                href={resource.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group overflow-hidden rounded-3xl border border-white/10 bg-deep-navy/90 p-6 transition-all hover:border-teal/40 hover:shadow-glow"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="text-3xl">{typeIcons[resource.type]}</div>
-                    <h3 className="mt-4 font-display text-xl text-white">{resource.title}</h3>
-                    <p className="mt-3 text-sm leading-6 text-slate-300">{resource.description}</p>
-                  </div>
-                </div>
-                <div className="mt-5 inline-flex items-center text-sm font-semibold text-teal transition-all group-hover:gap-2">
-                  Visit Resource
-                  <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
-                </div>
-              </a>
-            ))}
-          </section>
-        )}
+        </main>
 
-        {!loading && filteredResources.length === 0 && (
-          <div className="rounded-3xl border border-white/10 bg-deep-navy/90 p-12 text-center">
-            <p className="text-slate-400">No resources found in this category.</p>
-          </div>
-        )}
-      </main>
-
-      <Footer />
+        <Footer />
+      </div>
     </div>
   )
 }

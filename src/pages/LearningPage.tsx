@@ -15,9 +15,9 @@ const NAV_LINKS = [
 ]
 
 const difficultyColor: Record<Topic['difficulty'], string> = {
-  Beginner: 'bg-teal/20 text-teal border-teal/30',
-  Intermediate: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30',
-  Advanced: 'bg-purple-400/20 text-purple-300 border-purple-400/30',
+  Beginner: 'text-teal',
+  Intermediate: 'text-yellow-300',
+  Advanced: 'text-purple-300',
 }
 
 const topicFallbackImages: Record<string, string> = {
@@ -39,79 +39,69 @@ export default function LearningPage() {
   const [loginOpen, setLoginOpen] = useState(false)
 
   useEffect(() => {
-    void getTopics()
-      .then(setTopics)
-      .finally(() => setLoading(false))
+    void getTopics().then(setTopics).finally(() => setLoading(false))
   }, [])
 
   return (
-    <div className="relative min-h-screen text-white" style={{ background: '#06091b' }}>
-      <div className="fixed inset-0 z-0">
-        <img
-          src="/topic_nebulae.svg"
-          alt=""
-          className="h-full w-full object-cover opacity-20"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#06091b]/80 via-[#06091b]/60 to-[#06091b]/90" />
-      </div>
-
+    <div
+      className="relative min-h-screen text-white"
+      style={{
+        backgroundImage: 'url(https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1920&q=90)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+      }}
+    >
+      <div className="fixed inset-0 z-0 bg-black/55" />
       <div className="relative z-10">
         <Navbar links={NAV_LINKS} onOpenLogin={() => setLoginOpen(true)} />
         <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
-        <main className="mx-auto max-w-5xl animate-fadeIn px-6 pb-24 pt-28">
-          <div className="mb-3">
+        <main className="mx-auto max-w-4xl animate-fadeIn px-6 pb-24 pt-28">
+          <div className="mb-2">
             <h1 className="font-display text-5xl font-extrabold text-white">Learning Hub</h1>
             <div className="mt-2 h-1 w-16 rounded-full bg-teal" />
           </div>
-          <p className="mt-4 max-w-2xl text-lg text-slate-400">
+          <p className="mt-4 text-base text-slate-300">
             Expand your knowledge and explore the wonders of space. Start your learning journey with our comprehensive topics below.
           </p>
 
-          <div className="mt-12 space-y-5">
+          <div className="mt-12 space-y-4">
             {loading
               ? Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-40 animate-pulse rounded-2xl bg-white/5" />
+                  <div key={i} className="h-48 animate-pulse rounded-2xl bg-white/10" />
                 ))
               : topics.map((topic) => {
-                  const image = topicFallbackImages[topic.slug] ?? null
+                  const image = topic.image_url ?? topicFallbackImages[topic.slug]
                   return (
                     <Link
                       key={topic.id}
                       to={`/learning/${topic.slug}`}
-                      className="group flex overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm transition-all duration-300 hover:border-teal/40 hover:bg-white/10 hover:shadow-[0_0_30px_rgba(0,200,200,0.15)]"
+                      className="group flex overflow-hidden rounded-2xl border border-white/15 bg-[#0a1628]/70 backdrop-blur-sm transition-all duration-300 hover:border-teal/50 hover:bg-[#0a1628]/90 hover:shadow-[0_0_25px_rgba(0,200,200,0.2)]"
                     >
-                      <div className="relative w-52 flex-shrink-0 overflow-hidden sm:w-64">
+                      <div className="relative w-52 flex-shrink-0 overflow-hidden sm:w-60">
                         {image ? (
                           <img
                             src={image}
                             alt={topic.title}
-                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-navy text-5xl">
+                          <div className="flex h-full w-full items-center justify-center bg-slate-800 text-5xl">
                             {topic.icon}
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#06091b]/80" />
                       </div>
 
-                      <div className="flex flex-1 flex-col justify-center px-7 py-6">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <span className="text-2xl">{topic.icon}</span>
-                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${difficultyColor[topic.difficulty]}`}>
-                            {topic.difficulty}
-                          </span>
-                        </div>
-                        <h2 className="mt-3 font-display text-2xl font-bold text-white transition-colors group-hover:text-teal">
+                      <div className="flex flex-1 flex-col justify-center px-8 py-7">
+                        <h2 className="font-display text-3xl font-bold text-white transition-colors group-hover:text-teal">
                           {topic.title}
                         </h2>
-                        <p className="mt-2 text-sm leading-7 text-slate-400">{topic.description}</p>
-                        <div className="mt-4 flex items-center gap-6 text-sm text-slate-500">
+                        <p className="mt-3 text-base leading-7 text-slate-400">{topic.description}</p>
+                        <div className="mt-4 flex items-center gap-4 text-sm text-slate-500">
+                          <span className={difficultyColor[topic.difficulty]}>{topic.difficulty}</span>
+                          <span>•</span>
                           <span>📖 {topic.lesson_count} lessons</span>
-                          <span className="text-teal opacity-0 transition-opacity group-hover:opacity-100">
-                            Start learning →
-                          </span>
                         </div>
                       </div>
                     </Link>
@@ -120,13 +110,13 @@ export default function LearningPage() {
           </div>
 
           {!loading && topics.length > 0 && (
-            <div className="mt-16 rounded-3xl border border-white/10 bg-white/5 p-10 text-center backdrop-blur-sm">
-              <div className="text-4xl">📖✨</div>
-              <h3 className="mt-4 font-display text-2xl font-bold text-white">Ready to Start Learning?</h3>
-              <p className="mt-2 text-slate-400">Begin your astronomy journey today and unlock the mysteries of the universe.</p>
+            <div className="mt-16 rounded-3xl border border-white/10 bg-[#0a1628]/70 p-12 text-center backdrop-blur-sm">
+              <div className="text-5xl">📖✨</div>
+              <h3 className="mt-5 font-display text-3xl font-bold text-white">Ready to Start Learning?</h3>
+              <p className="mt-3 text-slate-400">Begin your astronomy journey today and unlock the mysteries of the universe.</p>
               <Link
                 to={`/learning/${topics[0]?.slug}`}
-                className="mt-6 inline-block rounded-xl bg-teal px-8 py-3 font-bold text-slate-950 hover:brightness-110"
+                className="mt-7 inline-block rounded-xl bg-teal px-10 py-3 font-bold text-slate-950 hover:brightness-110"
               >
                 Start Exploring
               </Link>

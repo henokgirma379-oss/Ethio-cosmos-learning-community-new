@@ -2,34 +2,56 @@ import { Link } from 'react-router-dom'
 import type { Topic } from '../types'
 
 const difficultyStyles: Record<Topic['difficulty'], string> = {
-  Beginner: 'border-teal bg-teal-900/50 text-teal-200',
-  Intermediate: 'border-yellow-700 bg-yellow-900/50 text-yellow-200',
-  Advanced: 'border-purple-700 bg-purple-900/50 text-purple-200',
+  Beginner: 'bg-teal/20 text-teal border-teal/40',
+  Intermediate: 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30',
+  Advanced: 'bg-purple-400/20 text-purple-300 border-purple-400/30',
 }
 
-const topBorderStyles: Record<Topic['difficulty'], string> = {
-  Beginner: 'border-t-teal',
-  Intermediate: 'border-t-gold',
-  Advanced: 'border-t-cosmos-purple',
+const topicFallbackImages: Record<string, string> = {
+  fundamentals: '/topic_fundamentals.svg',
+  ethiopia: '/topic_ethiopia.svg',
+  'solar-system': '/topic_solar_system.svg',
+  planets: '/topic_planets.svg',
+  moon: '/topic_moon.svg',
+  stars: '/topic_stars.svg',
+  'black-holes': '/topic_black_holes.svg',
+  wormholes: '/topic_wormholes.svg',
+  nebulae: '/topic_nebulae.svg',
+  asteroids: '/topic_asteroids.svg',
 }
 
 export default function TopicCard({ topic }: { topic: Topic }) {
+  const image = topic.image_url ?? topicFallbackImages[topic.slug] ?? null
+
   return (
     <Link
       to={`/learning/${topic.slug}`}
-      className={`group flex h-full flex-col rounded-xl border border-white/5 border-t-2 bg-deep-navy p-6 transition-all duration-300 hover:scale-105 hover:shadow-glow ${topBorderStyles[topic.difficulty]}`}
+      className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="text-3xl">{topic.icon}</div>
-        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${difficultyStyles[topic.difficulty]}`}>
+      <div className="relative h-48 overflow-hidden">
+        {image ? (
+          <img
+            src={image}
+            alt={topic.title}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-slate-800 text-5xl">
+            {topic.icon}
+          </div>
+        )}
+        <span
+          className={`absolute right-3 top-3 rounded-full border px-3 py-1 text-xs font-semibold backdrop-blur-sm ${difficultyStyles[topic.difficulty]}`}
+        >
           {topic.difficulty}
         </span>
       </div>
-      <h3 className="mt-4 font-display text-xl font-bold text-white">{topic.title}</h3>
-      <p className="mt-2 flex-1 text-sm leading-6 text-slate-400">{topic.description}</p>
-      <div className="mt-6 flex items-center justify-between text-sm text-teal">
-        <span>{topic.lesson_count} lessons</span>
-        <span className="transition-transform group-hover:translate-x-1">→</span>
+      <div className="flex flex-1 flex-col p-5 text-slate-900">
+        <h3 className="font-display text-lg font-bold text-slate-900 group-hover:text-blue-700">
+          {topic.title}
+        </h3>
+        <p className="mt-2 flex-1 text-sm leading-6 text-slate-600">{topic.description}</p>
+        <div className="mt-4 text-sm text-slate-500">{topic.lesson_count} lessons</div>
       </div>
     </Link>
   )

@@ -33,7 +33,8 @@ create table if not exists public.topics (
   lesson_count int default 0,
   icon text,
   color_accent text,
-  order_index int default 0
+  order_index int default 0,
+  image_url text
 );
 
 create table if not exists public.lessons (
@@ -180,3 +181,57 @@ create policy "progress_insert_own" on public.user_progress for insert with chec
 
 drop policy if exists "progress_delete_own" on public.user_progress;
 create policy "progress_delete_own" on public.user_progress for delete using (auth.uid() = user_id);
+
+create table if not exists public.quiz_questions (
+  id uuid default gen_random_uuid() primary key,
+  topic_id uuid references public.topics(id) on delete cascade,
+  question text not null,
+  option_a text not null,
+  option_b text not null,
+  option_c text not null,
+  option_d text not null,
+  correct_option text check (correct_option in ('a','b','c','d')) not null,
+  order_index int default 0,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.quiz_attempts (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade,
+  topic_id uuid references public.topics(id) on delete cascade,
+  score int not null,
+  total int not null,
+  attempted_at timestamptz default now()
+);
+
+create table if not exists public.bookmarks (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade,
+  lesson_id uuid references public.lessons(id) on delete cascade,
+  created_at timestamptz default now(),
+  unique(user_id, lesson_id)
+);
+
+alter table public.quiz_questions enable row level security;
+alter table public.quiz_attempts enable row level security;
+alter table public.bookmarks enable row level security;
+
+drop policy if exists "quiz_questions_read" on public.quiz_questions;
+create policy "quiz_questions_read" on public.quiz_questions for select using (true);
+
+drop policy if exists "quiz_questions_write" on public.quiz_questions;
+create policy "quiz_questions_write" on public.quiz_questions for all using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+) with check (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+
+drop policy if exists "quiz_attempts_own" on public.quiz_attempts;
+create policy "quiz_attempts_own" on public.quiz_attempts for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "bookmarks_own" on public.bookmarks;
+create policy "bookmarks_own" on public.bookmarks for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

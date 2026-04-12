@@ -23,7 +23,6 @@ export default function MaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([])
   const [modal, setModal] = useState<ModalState>(null)
   const [loginOpen, setLoginOpen] = useState(false)
-  const [activeSection, setActiveSection] = useState<'images' | 'videos' | 'pdfs' | null>(null)
 
   useEffect(() => {
     void getMaterials().then(setMaterials)
@@ -34,46 +33,46 @@ export default function MaterialsPage() {
   const pdfs = useMemo(() => materials.filter((m) => m.type === 'pdf'), [materials])
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setModal(null); setActiveSection(null) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModal(null)
       if (modal?.type === 'gallery' && images.length) {
         if (e.key === 'ArrowRight') setModal({ type: 'gallery', index: (modal.index + 1) % images.length })
         if (e.key === 'ArrowLeft') setModal({ type: 'gallery', index: (modal.index - 1 + images.length) % images.length })
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [modal, images])
 
   return (
-    <div className="relative min-h-screen text-white" style={{ background: '#06091b' }}>
-      <div className="absolute inset-x-0 top-0 h-[520px] overflow-hidden">
-        <img
-          src="/topic_nebulae.svg"
-          alt=""
-          className="h-full w-full object-cover opacity-60"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#06091b]/40 via-transparent to-[#06091b]" />
-      </div>
-
+    <div
+      className="relative min-h-screen text-white"
+      style={{
+        backgroundImage: 'url(https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1920&q=90)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+      }}
+    >
+      <div className="fixed inset-0 z-0 bg-black/55" />
       <div className="relative z-10">
         <Navbar links={NAV_LINKS} onOpenLogin={() => setLoginOpen(true)} />
         <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
-        <main className="mx-auto max-w-6xl animate-fadeIn px-6 pb-24 pt-28">
-          <div className="pb-12 pt-10 text-center">
-            <h1 className="font-display text-5xl font-extrabold text-white drop-shadow-lg">Our Materials</h1>
-            <p className="mx-auto mt-4 max-w-xl text-lg text-slate-300">
+        <main className="mx-auto max-w-2xl animate-fadeIn px-6 pb-24 pt-28">
+          <div className="mb-12 text-center">
+            <h1 className="font-display text-5xl font-extrabold text-white drop-shadow-lg">
+              Our Materials
+            </h1>
+            <p className="mx-auto mt-4 max-w-lg text-base text-slate-300">
               Explore and access our collection of resources related to space science and astronomy.
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d1630]/90 backdrop-blur-sm">
-              <div className="border-b border-white/10 px-6 py-4">
-                <h2 className="font-display text-lg font-bold text-white">Image Gallery</h2>
-              </div>
-              <div className="grid grid-cols-2 gap-0.5 bg-black/30">
+          <div className="space-y-8">
+            <div className="rounded-2xl border border-teal/40 bg-[#0a1628]/80 p-6 shadow-[0_0_30px_rgba(0,200,200,0.15)] backdrop-blur-sm">
+              <h2 className="mb-5 text-center font-display text-2xl font-bold text-white">Image Gallery</h2>
+              <div className="grid grid-cols-2 gap-1 overflow-hidden rounded-xl">
                 {images.length >= 1
                   ? images.slice(0, 4).map((img) => (
                       <div key={img.id} className="relative overflow-hidden" style={{ paddingTop: '75%' }}>
@@ -85,190 +84,86 @@ export default function MaterialsPage() {
                       </div>
                     ))
                   : Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="aspect-video bg-navy/60" />
+                      <div key={i} className="aspect-square bg-slate-800/60" />
                     ))}
               </div>
-              <div className="px-6 py-5">
-                <p className="text-sm text-slate-400">Browse Our Photos</p>
+              <p className="mt-5 text-center text-sm text-slate-300">Browse Our Photos</p>
+              <div className="mt-3 flex justify-center">
                 <button
-                  onClick={() => {
-                    if (images.length) {
-                      setModal({ type: 'gallery', index: 0 })
-                    } else {
-                      setActiveSection('images')
-                    }
-                  }}
-                  className="mt-3 w-full rounded-xl bg-teal py-3 text-sm font-bold text-slate-950 transition hover:brightness-110"
+                  onClick={() => images.length && setModal({ type: 'gallery', index: 0 })}
+                  className="rounded-lg border border-teal/60 bg-transparent px-10 py-2 text-sm font-semibold text-teal transition hover:bg-teal/10"
                 >
                   View Gallery
                 </button>
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d1630]/90 backdrop-blur-sm">
-              <div className="border-b border-white/10 px-6 py-4">
-                <h2 className="font-display text-lg font-bold text-white">Video Collection</h2>
-              </div>
-              <div
-                className="relative flex items-center justify-center overflow-hidden bg-navy/60"
-                style={{ aspectRatio: '16/10' }}
-              >
+            <div className="rounded-2xl border border-teal/40 bg-[#0a1628]/80 p-6 shadow-[0_0_30px_rgba(0,200,200,0.15)] backdrop-blur-sm">
+              <h2 className="mb-5 text-center font-display text-2xl font-bold text-white">Video Collection</h2>
+              <div className="relative overflow-hidden rounded-xl bg-black" style={{ aspectRatio: '16/9' }}>
                 {videos[0]?.thumbnail_url ? (
-                  <img
-                    src={videos[0].thumbnail_url}
-                    alt={videos[0].title}
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={videos[0].thumbnail_url} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#0a1628] to-[#1c2d5b]">
-                    <span className="text-6xl opacity-30">🎬</span>
+                  <div className="flex h-full w-full items-center justify-center bg-slate-900">
+                    <span className="text-5xl opacity-30">🎬</span>
                   </div>
                 )}
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-2xl backdrop-blur-sm">
-                    ▶
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-black/50 text-2xl text-white">▶</div>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 flex items-center gap-2 bg-black/60 px-3 py-2">
+                  <span className="text-xs text-white">▶</span>
+                  <div className="h-1 flex-1 rounded-full bg-white/30">
+                    <div className="h-1 w-1/3 rounded-full bg-red-500" />
                   </div>
+                  <span className="text-xs text-white">🔊</span>
                 </div>
               </div>
-              <div className="px-6 py-5">
-                <p className="text-sm text-slate-400">Watch Our Videos</p>
+              <p className="mt-5 text-center text-sm text-slate-300">Watch Our Videos</p>
+              <div className="mt-3 flex justify-center">
                 <button
-                  onClick={() => {
-                    if (videos[0]) setModal({ type: 'video', url: videos[0].url, title: videos[0].title })
-                    else setActiveSection('videos')
-                  }}
-                  className="mt-3 w-full rounded-xl bg-teal py-3 text-sm font-bold text-slate-950 transition hover:brightness-110"
+                  onClick={() => videos[0] && setModal({ type: 'video', url: videos[0].url, title: videos[0].title })}
+                  className="rounded-lg border border-teal/60 bg-transparent px-10 py-2 text-sm font-semibold text-teal transition hover:bg-teal/10"
                 >
                   View Videos
                 </button>
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0d1630]/90 backdrop-blur-sm">
-              <div className="border-b border-white/10 px-6 py-4">
-                <h2 className="font-display text-lg font-bold text-white">PDF Documents</h2>
-              </div>
-              <div
-                className="flex items-center justify-center gap-6 bg-[#0a1628]"
-                style={{ aspectRatio: '16/10' }}
-              >
-                {pdfs.length >= 1 ? (
-                  pdfs.slice(0, 2).map((pdf) => (
-                    <div key={pdf.id} className="flex flex-col items-center gap-2">
-                      <div className="flex h-20 w-16 flex-col items-center justify-center rounded-lg border border-red-500/30 bg-[#1a0a0a] shadow-lg">
-                        <div className="text-3xl text-red-500">📄</div>
-                        <div className="mt-1 text-center text-[9px] font-bold uppercase tracking-widest text-red-400">PDF</div>
-                      </div>
-                      <div className="max-w-[80px] truncate text-center text-[10px] text-slate-400">{pdf.title}</div>
-                    </div>
-                  ))
-                ) : (
-                  <>
-                    {[1, 2].map((i) => (
-                      <div key={i} className="flex flex-col items-center gap-2">
-                        <div className="flex h-20 w-16 flex-col items-center justify-center rounded-lg border border-red-500/30 bg-[#1a0a0a] shadow-lg">
-                          <div className="text-3xl text-red-500">📄</div>
-                          <div className="mt-1 text-center text-[9px] font-bold uppercase tracking-widest text-red-400">PDF</div>
+            <div className="rounded-2xl border border-teal/40 bg-[#0a1628]/80 p-6 shadow-[0_0_30px_rgba(0,200,200,0.15)] backdrop-blur-sm">
+              <h2 className="mb-5 text-center font-display text-2xl font-bold text-white">PDF Documents</h2>
+              <div className="flex justify-center gap-8">
+                {pdfs.length >= 1
+                  ? pdfs.slice(0, 2).map((pdf) => (
+                      <div key={pdf.id} className="flex flex-col items-center gap-2">
+                        <div className="flex h-24 w-20 flex-col items-center justify-center rounded-xl border border-red-500/40 bg-[#1a0808] shadow-lg">
+                          <div className="text-4xl">📄</div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-red-500">PDF</div>
                         </div>
-                        <div className="text-[10px] text-slate-500">{i === 1 ? 'Astronomy Guide' : 'Telescope Manual'}</div>
+                        <span className="max-w-[90px] truncate text-center text-[11px] text-slate-400">{pdf.title}</span>
+                      </div>
+                    ))
+                  : ['Astronomy Guide', 'Telescope Manual'].map((name) => (
+                      <div key={name} className="flex flex-col items-center gap-2">
+                        <div className="flex h-24 w-20 flex-col items-center justify-center rounded-xl border border-red-500/40 bg-[#1a0808] shadow-lg">
+                          <div className="text-4xl">📄</div>
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-red-500">PDF</div>
+                        </div>
+                        <span className="text-center text-[11px] text-slate-400">{name}</span>
                       </div>
                     ))}
-                  </>
-                )}
               </div>
-              <div className="px-6 py-5">
-                <p className="text-sm text-slate-400">Download Resources</p>
+              <p className="mt-5 text-center text-sm text-slate-300">Download Resources</p>
+              <div className="mt-3 flex justify-center">
                 <button
-                  onClick={() => {
-                    if (pdfs[0]) setModal({ type: 'pdf', url: pdfs[0].url, title: pdfs[0].title })
-                    else setActiveSection('pdfs')
-                  }}
-                  className="mt-3 w-full rounded-xl bg-teal py-3 text-sm font-bold text-slate-950 transition hover:brightness-110"
+                  onClick={() => pdfs[0] && setModal({ type: 'pdf', url: pdfs[0].url, title: pdfs[0].title })}
+                  className="rounded-lg border border-teal/60 bg-transparent px-10 py-2 text-sm font-semibold text-teal transition hover:bg-teal/10"
                 >
                   View PDFs
                 </button>
               </div>
             </div>
           </div>
-
-          {images.length > 0 && (
-            <div className="mt-14">
-              <h2 className="font-display text-2xl font-bold text-white">All Images</h2>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {images.map((img, index) => (
-                  <button
-                    key={img.id}
-                    onClick={() => setModal({ type: 'gallery', index })}
-                    className="group overflow-hidden rounded-2xl border border-white/10"
-                  >
-                    <div className="relative overflow-hidden" style={{ paddingTop: '66%' }}>
-                      <img
-                        src={img.thumbnail_url ?? img.url}
-                        alt={img.title}
-                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
-                      />
-                      <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/60 to-transparent p-4 opacity-0 transition-opacity group-hover:opacity-100">
-                        <span className="text-sm font-semibold text-white">{img.title}</span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {videos.length > 0 && (
-            <div className="mt-14">
-              <h2 className="font-display text-2xl font-bold text-white">All Videos</h2>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {videos.map((video) => (
-                  <button
-                    key={video.id}
-                    onClick={() => setModal({ type: 'video', url: video.url, title: video.title })}
-                    className="group overflow-hidden rounded-2xl border border-white/10 bg-[#0d1630]/90 p-4 text-left transition hover:border-teal/40"
-                  >
-                    <div className="font-semibold text-white group-hover:text-teal">{video.title}</div>
-                    <div className="mt-1 text-sm text-slate-400">▶ Click to watch</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {pdfs.length > 0 && (
-            <div className="mt-14">
-              <h2 className="font-display text-2xl font-bold text-white">All PDFs</h2>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {pdfs.map((pdf) => (
-                  <div
-                    key={pdf.id}
-                    className="rounded-2xl border border-white/10 bg-[#0d1630]/90 p-5"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="text-3xl text-red-400">📄</div>
-                      <div className="font-semibold text-white">{pdf.title}</div>
-                    </div>
-                    <div className="mt-4 flex gap-3 text-sm">
-                      <button
-                        onClick={() => setModal({ type: 'pdf', url: pdf.url, title: pdf.title })}
-                        className="rounded-xl bg-teal px-5 py-2 font-bold text-slate-950 hover:brightness-110"
-                      >
-                        Preview
-                      </button>
-                      <a
-                        href={pdf.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-xl border border-white/10 px-5 py-2 font-semibold text-slate-300 hover:border-teal/40 hover:text-teal"
-                      >
-                        Download
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </main>
 
         <Footer />
@@ -277,7 +172,9 @@ export default function MaterialsPage() {
       {modal && (
         <div
           className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
-          onClick={(e) => { if (e.target === e.currentTarget) { setModal(null) } }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setModal(null)
+          }}
         >
           <button
             onClick={() => setModal(null)}
@@ -291,23 +188,21 @@ export default function MaterialsPage() {
               <div className="mb-4 flex items-center justify-between text-sm text-slate-300">
                 <button
                   onClick={() => setModal({ type: 'gallery', index: (modal.index - 1 + images.length) % images.length })}
-                  className="rounded-xl border border-white/10 px-4 py-2 hover:border-teal/40 hover:text-teal"
+                  className="rounded-xl border border-white/10 px-4 py-2 hover:text-teal"
                 >
                   ← Prev
                 </button>
-                <span>{images[modal.index]?.title} ({modal.index + 1}/{images.length})</span>
+                <span>
+                  {images[modal.index]?.title} ({modal.index + 1}/{images.length})
+                </span>
                 <button
                   onClick={() => setModal({ type: 'gallery', index: (modal.index + 1) % images.length })}
-                  className="rounded-xl border border-white/10 px-4 py-2 hover:border-teal/40 hover:text-teal"
+                  className="rounded-xl border border-white/10 px-4 py-2 hover:text-teal"
                 >
                   Next →
                 </button>
               </div>
-              <img
-                src={images[modal.index]?.url}
-                alt={images[modal.index]?.title}
-                className="max-h-[80vh] w-full rounded-3xl object-contain"
-              />
+              <img src={images[modal.index]?.url} alt={images[modal.index]?.title} className="max-h-[80vh] w-full rounded-3xl object-contain" />
             </div>
           )}
 
@@ -316,7 +211,6 @@ export default function MaterialsPage() {
               <h3 className="mb-5 font-display text-2xl font-bold text-white">{modal.title}</h3>
               <video controls className="w-full rounded-2xl">
                 <source src={modal.url} />
-                Your browser does not support the video tag.
               </video>
             </div>
           )}
@@ -334,11 +228,7 @@ export default function MaterialsPage() {
                   Open in Browser
                 </a>
               </div>
-              <iframe
-                title={modal.title}
-                src={modal.url}
-                className="h-[72vh] w-full rounded-2xl bg-white"
-              />
+              <iframe title={modal.title} src={modal.url} className="h-[72vh] w-full rounded-2xl bg-white" />
             </div>
           )}
         </div>

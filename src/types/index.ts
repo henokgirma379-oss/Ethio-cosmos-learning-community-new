@@ -25,6 +25,7 @@ export interface Topic {
   icon: string
   color_accent: string
   order_index: number
+  image_url?: string | null
 }
 
 export interface Lesson {

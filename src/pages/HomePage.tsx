@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
-import StarField from '../components/StarField'
+import SecondaryNavbar from '../components/SecondaryNavbar'
 import TopicCard from '../components/TopicCard'
 import { getTopics } from '../lib/api'
 import type { Topic } from '../types'
@@ -43,113 +43,94 @@ export default function HomePage() {
   }, [])
 
   return (
-    <div className="relative min-h-screen bg-[#05091a] text-white">
-      <StarField />
-      <Navbar links={NAV_LINKS} onOpenLogin={() => setLoginOpen(true)} />
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+    <div
+      className="relative min-h-screen text-white"
+      style={{
+        backgroundImage: 'url(https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1920&q=90)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+      }}
+    >
+      <div className="fixed inset-0 z-0 bg-black/50" />
 
-      <section className="relative flex min-h-screen items-center overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="/hero_stargazer.svg"
-            alt="Stargazer with telescope under the Milky Way"
-            className="h-full w-full object-cover object-center"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#05091a] via-[#05091a]/70 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#05091a] via-transparent to-[#05091a]/30" />
-        </div>
+      <div className="relative z-10">
+        <Navbar links={NAV_LINKS} onOpenLogin={() => setLoginOpen(true)} />
+        <SecondaryNavbar />
+        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
-        <div className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-20 pt-28">
-          <p className="text-sm font-semibold uppercase tracking-[0.4em] text-teal">
-            🇪🇹 Ethiopian Astronomy Community
-          </p>
-          <h1 className="mt-5 max-w-2xl font-display text-5xl font-extrabold leading-[1.1] text-white sm:text-6xl lg:text-7xl">
-            Ethio-Cosmos<br />
-            <span className="text-teal">Learning Community</span>
-          </h1>
-          <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-            Your gateway to astronomy exploration & learning. Discover the universe from Ethiopia.
-          </p>
-          <div className="mt-10 flex flex-wrap gap-4">
-            <Link
-              to="/learning"
-              className="rounded-xl bg-teal px-10 py-4 text-base font-bold text-slate-950 transition hover:brightness-110 hover:scale-[1.02]"
-            >
-              Begin Your Journey
-            </Link>
-            <Link
-              to="/about"
-              className="rounded-xl border border-white/30 px-10 py-4 text-base font-semibold text-white transition hover:border-teal/50 hover:bg-white/5"
-            >
-              Learn More
-            </Link>
+        <section className="relative flex min-h-screen items-center px-6 pt-28">
+          <div className="mx-auto w-full max-w-7xl">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.4em] text-teal">
+                🇪🇹 Ethiopian Astronomy Community
+              </p>
+              <h1 className="mt-5 font-display text-5xl font-extrabold leading-tight text-white drop-shadow-lg sm:text-6xl lg:text-7xl">
+                Ethio-Cosmos
+                <br />
+                <span className="text-teal">Learning Community</span>
+              </h1>
+              <p className="mt-6 text-xl italic text-slate-200">
+                Your Gateway to Astronomy Exploration &amp; Learning
+              </p>
+              <div className="mt-10 flex flex-wrap gap-4">
+                <Link
+                  to="/learning"
+                  className="rounded-lg border-2 border-white/60 bg-[#0d1f3c]/80 px-8 py-3 text-base font-bold text-white backdrop-blur-sm transition hover:border-white hover:bg-[#0d1f3c]"
+                >
+                  Begin Your Journey
+                </Link>
+                <Link
+                  to="/about"
+                  className="rounded-lg border-2 border-white/40 bg-[#0d1f3c]/60 px-8 py-3 text-base font-semibold text-white backdrop-blur-sm transition hover:border-white/70"
+                >
+                  Learn More
+                </Link>
+              </div>
+            </div>
           </div>
+        </section>
 
-          <div className="mt-20 grid gap-4 sm:grid-cols-3">
+        <section className="mx-auto max-w-7xl px-6 pb-10 pt-4">
+          <div className="grid gap-5 sm:grid-cols-3">
             {features.map((f) => (
               <div
                 key={f.title}
-                className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-md"
+                className="rounded-2xl bg-white/90 p-6 text-slate-900 shadow-xl backdrop-blur-sm"
               >
-                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-teal/20 text-2xl">
-                  {f.icon}
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-3xl">
+                    {f.icon}
+                  </div>
+                  <h3 className="font-display text-lg font-bold text-slate-900">{f.title}</h3>
                 </div>
-                <div>
-                  <h3 className="font-display text-base font-bold text-white">{f.title}</h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-400">{f.description}</p>
-                </div>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{f.description}</p>
               </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="relative z-10 mx-auto max-w-7xl px-6 py-20">
-        <div className="mb-10 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-display text-4xl font-bold text-white">Featured Learning Topics</h2>
-            <p className="mt-2 text-slate-400">Essential Lessons &amp; Guides</p>
-          </div>
-          <Link to="/learning" className="text-sm font-semibold text-teal hover:underline">
-            View all topics →
-          </Link>
-        </div>
-        <div className="grid gap-6 md:grid-cols-3">
-          {topics.map((topic) => (
-            <TopicCard key={topic.id} topic={topic} />
-          ))}
-        </div>
-      </section>
-
-      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24">
-        <div className="relative overflow-hidden rounded-3xl border border-teal/20 bg-deep-navy p-14 text-center">
-          <div className="absolute inset-0 opacity-15">
-            <img
-              src="/cta_cosmos.svg"
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          </div>
-          <div className="relative">
-            <h2 className="font-display text-3xl font-bold text-white sm:text-4xl">
-              Ready to Explore the Cosmos?
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-slate-300">
-              Join the EthioCosmos community — learn astronomy, connect with stargazers, and discover the universe.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <Link to="/learning" className="rounded-xl bg-teal px-8 py-3 font-bold text-slate-950 hover:brightness-110">
-                Start Learning Free
-              </Link>
-              <Link to="/chat" className="rounded-xl border border-white/20 px-8 py-3 font-semibold text-white hover:border-teal/40 hover:text-teal">
-                Join Community Chat
-              </Link>
+        <section className="mx-auto max-w-7xl px-6 pb-24 pt-12">
+          <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="font-display text-4xl font-extrabold text-white drop-shadow">
+                Featured Learning Topics
+              </h2>
+              <p className="mt-2 text-slate-300">Essential Lessons &amp; Guides</p>
             </div>
+            <Link to="/learning" className="text-sm font-semibold text-teal hover:underline">
+              View all topics →
+            </Link>
           </div>
-        </div>
-      </section>
+          <div className="grid gap-6 md:grid-cols-3">
+            {topics.map((topic) => (
+              <TopicCard key={topic.id} topic={topic} />
+            ))}
+          </div>
+        </section>
 
-      <Footer />
+        <Footer />
+      </div>
     </div>
   )
 }

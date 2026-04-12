@@ -280,37 +280,38 @@ export async function getResources(): Promise<Resource[]> {
   return resources.length ? resources : fallbackResources
 }
 
-export async function getBookmarks(userId: string): Promise<string[]> {
+export async function getBookmarkedLessonIds(userId: string): Promise<string[]> {
   if (!supabase) return []
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('bookmarks')
     .select('lesson_id')
     .eq('user_id', userId)
-  if (error) {
-    logSupabaseError('getBookmarks', error, { allowFallback: true, table: 'bookmarks' })
-    return []
-  }
   return (data ?? []).map((row: { lesson_id: string }) => row.lesson_id)
 }
 
 export async function addBookmark(userId: string, lessonId: string): Promise<void> {
   if (!supabase) return
-  const { error } = await supabase
-    .from('bookmarks')
-    .insert({ user_id: userId, lesson_id: lessonId })
-
-  if (error && !error.message.includes('duplicate')) {
-    throw new Error(`Unable to save bookmark: ${error.message}`)
-  }
+  await supabase.from('bookmarks').upsert({ user_id: userId, lesson_id: lessonId })
 }
 
 export async function removeBookmark(userId: string, lessonId: string): Promise<void> {
   if (!supabase) return
-  const { error } = await supabase
+  await supabase
     .from('bookmarks')
     .delete()
     .eq('user_id', userId)
     .eq('lesson_id', lessonId)
+}
 
-  if (error) throw new Error(`Unable to remove bookmark: ${error.message}`)
+export async function getBookmarkedLessons(userId: string): Promise<Lesson[]> {
+  if (!supabase) return []
+  const { data } = await supabase
+    .from('bookmarks')
+    .select('lesson_id, lessons(*)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (!data) return []
+  return (data as Array<{ lessons: Lesson | Lesson[] | null }>)
+    .map((row) => (Array.isArray(row.lessons) ? row.lessons[0] ?? null : row.lessons))
+    .filter((lesson): lesson is Lesson => lesson !== null)
 }
