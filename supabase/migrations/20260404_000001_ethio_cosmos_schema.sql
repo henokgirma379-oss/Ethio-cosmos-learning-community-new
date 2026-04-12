@@ -96,6 +96,8 @@ alter table public.materials enable row level security;
 alter table public.topics enable row level security;
 alter table public.lessons enable row level security;
 
+create unique index if not exists page_content_page_section_idx on public.page_content(page, section);
+
 drop policy if exists "profiles_read_all" on public.profiles;
 create policy "profiles_read_all" on public.profiles for select using (true);
 

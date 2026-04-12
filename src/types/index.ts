@@ -64,21 +64,27 @@ export interface OnlinePresence {
 export interface QuizQuestion {
   id: string
   topic_id: string
+  lesson_id: string | null
   question: string
   option_a: string
   option_b: string
   option_c: string
   option_d: string
   correct_option: 'a' | 'b' | 'c' | 'd'
+  explanation: string | null
   order_index: number
   created_at: string
+  updated_at: string
 }
 
 export interface QuizAttempt {
   id: string
   user_id: string
   topic_id: string
+  lesson_id: string | null
   score: number
   total: number
+  percentage: number | null
   attempted_at: string
+  created_at: string
 }

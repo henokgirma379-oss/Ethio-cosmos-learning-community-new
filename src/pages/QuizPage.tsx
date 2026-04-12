@@ -96,7 +96,11 @@ export default function QuizPage() {
     setSubmitted(true)
 
     if (user) {
-      await saveQuizAttempt(user.id, topic.id, calculatedScore, totalQuestions)
+      try {
+        await saveQuizAttempt(user.id, topic.id, calculatedScore, totalQuestions)
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Unable to save quiz attempt.')
+      }
     }
 
     toast.success(`Quiz submitted! You scored ${calculatedScore}/${totalQuestions}`)
@@ -144,7 +148,7 @@ export default function QuizPage() {
                   <div>
                     <h2 className="font-display text-2xl text-white">Previous Attempt</h2>
                     <p className="mt-2 text-slate-300">
-                      Your last saved score was {previousAttempt.score} / {previousAttempt.total}.
+                      Your last saved score was {previousAttempt.score} / {previousAttempt.total} ({previousAttempt.percentage ?? Math.round((previousAttempt.score / Math.max(previousAttempt.total, 1)) * 100)}%).
                     </p>
                   </div>
                   <button onClick={handleRetake} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">
