@@ -12,7 +12,10 @@ export default function OnlineCounter() {
 
     const refreshPresence = async () => {
       if (supabase && user) {
-        await supabase.from('online_presence').upsert({ id: user.id, last_seen: new Date().toISOString() })
+        const { error } = await supabase.from('online_presence').upsert({ id: user.id, last_seen: new Date().toISOString() })
+        if (error) {
+          console.error('[Supabase:online_presence]', error.message)
+        }
       }
 
       const profiles = await getOnlineProfiles()

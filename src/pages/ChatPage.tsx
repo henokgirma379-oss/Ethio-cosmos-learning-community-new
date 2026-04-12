@@ -6,7 +6,7 @@ import Navbar from '../components/Navbar'
 import OnlineCounter from '../components/OnlineCounter'
 import StarField from '../components/StarField'
 import { useAuth } from '../context/AuthContext'
-import { getOnlineProfiles, getRecentMessages } from '../lib/api'
+import { getOnlineProfiles, getRecentMessages, getSupabaseStatusMessage } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import type { Message, Profile } from '../types'
 
@@ -58,6 +58,7 @@ export default function ChatPage() {
   const [uploading, setUploading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [chatStatusMessage, setChatStatusMessage] = useState<string | null>(getSupabaseStatusMessage())
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -68,6 +69,7 @@ export default function ChatPage() {
 
     const loadData = async () => {
       const [chatMessages, online] = await Promise.all([getRecentMessages(), getOnlineProfiles()])
+      setChatStatusMessage(getSupabaseStatusMessage())
       if (!mounted) return
       setMessages(chatMessages.length ? chatMessages : demoMessages)
       setOnlineUsers(online)
@@ -159,6 +161,7 @@ export default function ChatPage() {
     })
 
     if (error) {
+      setChatStatusMessage(error.message)
       toast.error(error.message)
       return
     }
@@ -185,9 +188,12 @@ export default function ChatPage() {
       if (error) throw error
       const { data: publicUrlData } = supabase.storage.from('chat-images').getPublicUrl(data.path)
       setImagePreview(publicUrlData.publicUrl)
+      setChatStatusMessage(getSupabaseStatusMessage())
       toast.success('Image uploaded successfully.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to upload image.')
+      const message = error instanceof Error ? error.message : 'Failed to upload image.'
+      setChatStatusMessage(`${message} Check the "chat-images" storage bucket if this keeps happening.`)
+      toast.error(message)
     } finally {
       setUploading(false)
     }
@@ -243,6 +249,11 @@ export default function ChatPage() {
             <h1 className="font-display text-2xl text-white">Community Chat</h1>
             <OnlineCounter />
           </div>
+          {chatStatusMessage && (
+            <div className="mx-6 mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              {chatStatusMessage}
+            </div>
+          )}
 
           <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
             {groupedMessages.length ? (

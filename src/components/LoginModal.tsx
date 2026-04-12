@@ -8,7 +8,7 @@ interface LoginModalProps {
 }
 
 export default function LoginModal({ open, onClose }: LoginModalProps) {
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth()
+  const { signInWithGoogle, signInWithEmail, signUpWithEmail, authMessage } = useAuth()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -80,6 +80,11 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
               <h2 className="mt-2 font-display text-2xl text-white">Welcome to EthioCosmos</h2>
               <p className="mt-2 text-sm text-slate-400">Sign in to access the full learning experience</p>
             </div>
+            {authMessage && (
+              <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-left text-sm text-amber-100">
+                {authMessage}
+              </div>
+            )}
             <div className="my-6 h-px bg-white/10" />
             <button
               onClick={handleGoogle}

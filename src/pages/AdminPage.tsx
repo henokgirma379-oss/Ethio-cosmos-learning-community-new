@@ -7,7 +7,8 @@ import Navbar from '../components/Navbar'
 import StarField from '../components/StarField'
 import { useAuth } from '../context/AuthContext'
 import { fallbackTopics } from '../data/fallbackData'
-import { supabase } from '../lib/supabase'
+import { getSupabaseStatusMessage } from '../lib/api'
+import { supabase, supabaseConfigError } from '../lib/supabase'
 import type { Lesson, Material, Message, PageContent, QuizQuestion, Topic } from '../types'
 
 const links = [
@@ -23,6 +24,8 @@ const tabs = ['About Page Content', 'Materials Manager', 'Chat Moderation', 'Top
 type AdminTab = (typeof tabs)[number]
 type MaterialType = 'image' | 'video' | 'pdf'
 type ModerationMessage = Message & { profiles?: { username?: string | null } | null }
+
+type UploadBucket = 'materials'
 
 const missionFallback = 'Update mission text here...'
 const whoWeAreFallback = 'Update who-we-are content here...'
@@ -64,6 +67,7 @@ export default function AdminPage() {
   const [newOptionC, setNewOptionC] = useState('')
   const [newOptionD, setNewOptionD] = useState('')
   const [newCorrectOption, setNewCorrectOption] = useState<QuizQuestion['correct_option']>('a')
+  const [adminStatusMessage, setAdminStatusMessage] = useState<string | null>(supabaseConfigError)
 
   const currentTopic = useMemo(
     () => topics.find((topic) => topic.slug === selectedTopic) ?? topics[0] ?? fallbackTopics[0],
@@ -86,13 +90,23 @@ export default function AdminPage() {
 
   useEffect(() => {
     const loadInitialData = async () => {
-      if (!supabase) return
+      if (!supabase) {
+        setAdminStatusMessage(supabaseConfigError)
+        return
+      }
 
-      const [{ data: topicsData }, { data: missionData }, { data: whoWeAreData }] = await Promise.all([
+      const [{ data: topicsData, error: topicsError }, { data: missionData, error: missionError }, { data: whoWeAreData, error: whoError }] = await Promise.all([
         supabase.from('topics').select('*').order('order_index'),
         supabase.from('page_content').select('*').eq('page', 'about').eq('section', 'mission').order('updated_at', { ascending: false }).limit(1),
         supabase.from('page_content').select('*').eq('page', 'about').eq('section', 'who-we-are').order('updated_at', { ascending: false }).limit(1),
       ])
+
+      const initialError = topicsError ?? missionError ?? whoError
+      if (initialError) {
+        setAdminStatusMessage(initialError.message)
+      } else {
+        setAdminStatusMessage(getSupabaseStatusMessage())
+      }
 
       const liveTopics = (topicsData as Topic[] | null) ?? []
       if (liveTopics.length) {
@@ -136,7 +150,7 @@ export default function AdminPage() {
 
       const { data, error } = await supabase.from('lessons').select('*').eq('topic_id', currentTopic.id).order('order_index')
       if (error) {
-        toast.error(error.message)
+        handleSupabaseError(error, 'Unable to load lessons.')
         return
       }
 
@@ -173,7 +187,7 @@ export default function AdminPage() {
         .order('created_at', { ascending: false })
         .limit(50)
       if (error) {
-        toast.error(error.message)
+        handleSupabaseError(error, 'Unable to load moderation messages.')
         return
       }
       setModerationMessages((data as ModerationMessage[] | null) ?? [])
@@ -188,7 +202,7 @@ export default function AdminPage() {
         .from('materials')
         .select('*')
         .order('created_at', { ascending: false })
-      if (error) { toast.error(error.message); return }
+      if (error) { handleSupabaseError(error, 'Unable to load materials.'); return }
       setMaterials((data as Material[] | null) ?? [])
     }
     if (activeTab === 'Materials Manager') { void loadMaterials() }
@@ -202,7 +216,7 @@ export default function AdminPage() {
         .select('*')
         .eq('topic_id', currentTopic.id)
         .order('order_index')
-      if (error) { toast.error(error.message); return }
+      if (error) { handleSupabaseError(error, 'Unable to load quiz questions.'); return }
       setQuizQuestions((data as QuizQuestion[] | null) ?? [])
     }
     if (activeTab === 'Quiz Manager') { void loadQuizQuestions() }
@@ -210,8 +224,20 @@ export default function AdminPage() {
 
   const requireSupabaseWrite = () => {
     if (supabase) return true
-    toast.error('Connect Supabase to enable admin writes')
+    const message = supabaseConfigError ?? 'Connect Supabase to enable admin writes.'
+    setAdminStatusMessage(message)
+    toast.error(message)
     return false
+  }
+
+  const handleSupabaseError = (error: unknown, fallbackMessage: string, options?: { bucket?: UploadBucket }) => {
+    const message = error instanceof Error ? error.message : fallbackMessage
+    const bucketNotice = options?.bucket && /bucket|storage/i.test(message)
+      ? ` Check the "${options.bucket}" storage bucket configuration and permissions.`
+      : ''
+    const finalMessage = `${message}${bucketNotice}`
+    setAdminStatusMessage(finalMessage)
+    toast.error(finalMessage)
   }
 
   const saveAboutSection = async (section: 'mission' | 'who-we-are', content: string, successMessage: string) => {
@@ -224,7 +250,8 @@ export default function AdminPage() {
         { onConflict: 'page,section' },
       )
 
-    if (error) { toast.error(error.message); return }
+    if (error) { handleSupabaseError(error, 'Unable to save page content.'); return }
+    setAdminStatusMessage(getSupabaseStatusMessage())
     toast.success(successMessage)
   }
 
@@ -237,7 +264,8 @@ export default function AdminPage() {
       .update({ title: topicTitle, description: topicDescription, difficulty: topicDifficulty })
       .eq('id', currentTopic.id)
 
-    if (error) { toast.error(error.message); return }
+    if (error) { handleSupabaseError(error, 'Unable to save topic.'); return }
+    setAdminStatusMessage(getSupabaseStatusMessage())
     setTopics((prev) => prev.map((topic) =>
       topic.id === currentTopic.id
         ? { ...topic, title: topicTitle, description: topicDescription, difficulty: topicDifficulty }
@@ -268,7 +296,8 @@ export default function AdminPage() {
       })
       .select()
       .single()
-    if (error) { toast.error(error.message); return }
+    if (error) { handleSupabaseError(error, 'Unable to create topic.'); return }
+    setAdminStatusMessage(getSupabaseStatusMessage())
     const inserted = data as Topic
     setTopics((prev) => [...prev, inserted])
     setSelectedTopic(inserted.slug)
@@ -288,7 +317,8 @@ export default function AdminPage() {
     )
     if (!confirmed) return
     const { error } = await supabase.from('topics').delete().eq('id', currentTopic.id)
-    if (error) { toast.error(error.message); return }
+    if (error) { handleSupabaseError(error, 'Unable to delete topic.'); return }
+    setAdminStatusMessage(getSupabaseStatusMessage())
     const remaining = topics.filter((topic) => topic.id !== currentTopic.id)
     setTopics(remaining)
     setSelectedTopic(remaining[0]?.slug ?? '')
@@ -306,7 +336,8 @@ export default function AdminPage() {
       .update({ title: lessonTitle, content: lessonContent })
       .eq('id', selectedLesson.id)
 
-    if (error) { toast.error(error.message); return }
+    if (error) { handleSupabaseError(error, 'Unable to save lesson.'); return }
+    setAdminStatusMessage(getSupabaseStatusMessage())
     setLessons((prev) => prev.map((item) =>
       item.id === selectedLesson.id ? { ...item, title: lessonTitle, content: lessonContent } : item,
     ))
@@ -333,7 +364,8 @@ export default function AdminPage() {
       })
       .select()
       .single()
-    if (error) { toast.error(error.message); return }
+    if (error) { handleSupabaseError(error, 'Unable to create lesson.'); return }
+    setAdminStatusMessage(getSupabaseStatusMessage())
     const inserted = data as Lesson
     setLessons((prev) => [...prev, inserted])
     setSelectedLessonId(inserted.id)
@@ -363,7 +395,8 @@ export default function AdminPage() {
     )
     if (!confirmed) return
     const { error } = await supabase.from('lessons').delete().eq('id', selectedLesson.id)
-    if (error) { toast.error(error.message); return }
+    if (error) { handleSupabaseError(error, 'Unable to delete lesson.'); return }
+    setAdminStatusMessage(getSupabaseStatusMessage())
     const remaining = lessons.filter((item) => item.id !== selectedLesson.id)
     setLessons(remaining)
     setSelectedLessonId(remaining[0]?.id ?? '')
@@ -400,6 +433,7 @@ export default function AdminPage() {
         thumbnail_url: type === 'image' ? publicUrlData.publicUrl : null,
       })
       if (insertError) throw insertError
+      setAdminStatusMessage(getSupabaseStatusMessage())
       toast.success(`${type.toUpperCase()} uploaded successfully.`)
       const { data: newMaterialData } = await supabase
         .from('materials')
@@ -410,7 +444,7 @@ export default function AdminPage() {
         setMaterials((prev) => [newMaterialData as Material, ...prev])
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to upload ${type}.`)
+      handleSupabaseError(error, `Failed to upload ${type}.`, { bucket: 'materials' })
     }
   }
 
@@ -419,7 +453,7 @@ export default function AdminPage() {
 
     const { error } = await supabase.from('messages').delete().eq('id', messageId)
     if (error) {
-      toast.error(error.message)
+      handleSupabaseError(error, 'Unable to delete message.')
       return
     }
 
@@ -436,10 +470,11 @@ export default function AdminPage() {
       }
       const { error } = await supabase.from('materials').delete().eq('id', material.id)
       if (error) throw error
+      setAdminStatusMessage(getSupabaseStatusMessage())
       setMaterials((prev) => prev.filter((item) => item.id !== material.id))
       toast.success('Material deleted.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete material.')
+      handleSupabaseError(error, 'Failed to delete material.', { bucket: 'materials' })
     }
   }
 
@@ -466,7 +501,8 @@ export default function AdminPage() {
       })
       .select()
       .single()
-    if (error) { toast.error(error.message); return }
+    if (error) { handleSupabaseError(error, 'Unable to add quiz question.'); return }
+    setAdminStatusMessage(getSupabaseStatusMessage())
     setQuizQuestions((prev) => [...prev, data as QuizQuestion])
     setNewQuestion('')
     setNewOptionA('')
@@ -480,7 +516,8 @@ export default function AdminPage() {
   const handleDeleteQuizQuestion = async (questionId: string) => {
     if (!requireSupabaseWrite() || !supabase) return
     const { error } = await supabase.from('quiz_questions').delete().eq('id', questionId)
-    if (error) { toast.error(error.message); return }
+    if (error) { handleSupabaseError(error, 'Unable to delete quiz question.'); return }
+    setAdminStatusMessage(getSupabaseStatusMessage())
     setQuizQuestions((prev) => prev.filter((q) => q.id !== questionId))
     toast.success('Question deleted.')
   }
@@ -509,6 +546,11 @@ export default function AdminPage() {
         </aside>
         <section className="rounded-3xl border border-white/10 bg-deep-navy/90 p-6">
           <h2 className="font-display text-3xl text-white">{activeTab}</h2>
+          {adminStatusMessage && (
+            <div className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              {adminStatusMessage}
+            </div>
+          )}
           {activeTab === 'About Page Content' && (
             <div className="mt-8 space-y-8">
               <div className="rounded-2xl bg-navy/60 p-5">
