@@ -12,8 +12,9 @@ export default {
         'cosmos-purple': '#7c5cbf',
       },
       fontFamily: {
-        display: ['Orbitron', 'sans-serif'],
-        body: ['Exo 2', 'sans-serif'],
+        display: ['"Space Grotesk"', 'sans-serif'],
+        body: ['Inter', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'],
       },
       keyframes: {
         fadeIn: {
