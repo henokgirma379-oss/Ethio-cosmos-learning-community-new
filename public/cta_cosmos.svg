@@ -1,0 +1,25 @@
+<svg width="1200" height="500" viewBox="0 0 1200 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="500" fill="#081120"/>
+  <defs>
+    <radialGradient id="ctaA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(318 176) rotate(90) scale(180 320)">
+      <stop stop-color="#2D5BFF" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#2D5BFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ctaB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(900 210) rotate(90) scale(210 380)">
+      <stop stop-color="#00C8C8" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#00C8C8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="500" fill="#081120"/>
+  <rect width="1200" height="500" fill="url(#ctaA)"/>
+  <rect width="1200" height="500" fill="url(#ctaB)"/>
+  <g fill="white" opacity="0.8">
+    <circle cx="102" cy="74" r="1.5"/><circle cx="196" cy="118" r="1.1"/><circle cx="286" cy="72" r="1.6"/><circle cx="402" cy="130" r="1.2"/>
+    <circle cx="516" cy="92" r="1.7"/><circle cx="628" cy="148" r="1.2"/><circle cx="738" cy="96" r="1.4"/><circle cx="856" cy="136" r="1.1"/>
+    <circle cx="964" cy="90" r="1.8"/><circle cx="1086" cy="126" r="1.3"/>
+  </g>
+  <circle cx="824" cy="248" r="74" fill="#D1E3FF" fill-opacity="0.18"/>
+  <circle cx="824" cy="248" r="42" fill="#E8F1FF" fill-opacity="0.32"/>
+  <path d="M720 312C792 260 870 252 962 286" stroke="#A6C7FF" stroke-opacity="0.32" stroke-width="8" stroke-linecap="round"/>
+  <path d="M146 348C312 308 486 308 648 348" stroke="#6AE6FF" stroke-opacity="0.18" stroke-width="6" stroke-linecap="round"/>
+</svg>
