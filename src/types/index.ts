@@ -88,3 +88,40 @@ export interface QuizAttempt {
   attempted_at: string
   created_at: string
 }
+
+export interface Article {
+  id: string
+  title: string
+  summary: string
+  content: string
+  thumbnail_url: string | null
+  category: string | null
+  author: string | null
+  created_at: string
+}
+
+export interface Scientist {
+  id: string
+  name: string
+  portrait_url: string | null
+  biography: string
+  contribution: string
+  order_index: number
+  created_at: string
+}
+
+export interface Resource {
+  id: string
+  title: string
+  description: string
+  url: string
+  type: 'book' | 'video' | 'website' | 'pdf' | 'tool'
+  created_at: string
+}
+
+export interface Bookmark {
+  id: string
+  user_id: string
+  lesson_id: string
+  created_at: string
+}

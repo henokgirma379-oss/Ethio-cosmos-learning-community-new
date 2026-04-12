@@ -1,5 +1,5 @@
-import { fallbackAboutContent, fallbackLessons, fallbackMaterials, fallbackTopics } from '../data/fallbackData'
-import type { Lesson, Material, Message, PageContent, Profile, QuizAttempt, QuizQuestion, Topic } from '../types'
+import { fallbackAboutContent, fallbackLessons, fallbackMaterials, fallbackTopics, fallbackArticles, fallbackScientists, fallbackResources } from '../data/fallbackData'
+import type { Lesson, Material, Message, PageContent, Profile, QuizAttempt, QuizQuestion, Topic, Article, Scientist, Resource } from '../types'
 import { supabase, supabaseConfigError } from './supabase'
 
 const wait = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -242,4 +242,75 @@ export async function getQuizQuestionCount(topicId: string): Promise<number> {
     return 0
   }
   return count ?? 0
+}
+
+export async function getArticles(): Promise<Article[]> {
+  if (!supabase) {
+    await wait()
+    return fallbackArticles
+  }
+
+  const { data, error } = await supabase.from('articles').select('*').order('created_at', { ascending: false })
+  if (error) logSupabaseError('getArticles', error, { allowFallback: true, table: 'articles' })
+  const articles = (data as Article[] | null) ?? []
+  return articles.length ? articles : fallbackArticles
+}
+
+export async function getScientists(): Promise<Scientist[]> {
+  if (!supabase) {
+    await wait()
+    return fallbackScientists
+  }
+
+  const { data, error } = await supabase.from('scientists').select('*').order('order_index')
+  if (error) logSupabaseError('getScientists', error, { allowFallback: true, table: 'scientists' })
+  const scientists = (data as Scientist[] | null) ?? []
+  return scientists.length ? scientists : fallbackScientists
+}
+
+export async function getResources(): Promise<Resource[]> {
+  if (!supabase) {
+    await wait()
+    return fallbackResources
+  }
+
+  const { data, error } = await supabase.from('resources').select('*').order('created_at', { ascending: false })
+  if (error) logSupabaseError('getResources', error, { allowFallback: true, table: 'resources' })
+  const resources = (data as Resource[] | null) ?? []
+  return resources.length ? resources : fallbackResources
+}
+
+export async function getBookmarks(userId: string): Promise<string[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select('lesson_id')
+    .eq('user_id', userId)
+  if (error) {
+    logSupabaseError('getBookmarks', error, { allowFallback: true, table: 'bookmarks' })
+    return []
+  }
+  return (data ?? []).map((row: { lesson_id: string }) => row.lesson_id)
+}
+
+export async function addBookmark(userId: string, lessonId: string): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase
+    .from('bookmarks')
+    .insert({ user_id: userId, lesson_id: lessonId })
+
+  if (error && !error.message.includes('duplicate')) {
+    throw new Error(`Unable to save bookmark: ${error.message}`)
+  }
+}
+
+export async function removeBookmark(userId: string, lessonId: string): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase
+    .from('bookmarks')
+    .delete()
+    .eq('user_id', userId)
+    .eq('lesson_id', lessonId)
+
+  if (error) throw new Error(`Unable to remove bookmark: ${error.message}`)
 }

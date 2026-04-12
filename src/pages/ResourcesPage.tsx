@@ -1,60 +1,51 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
 import StarField from '../components/StarField'
+import { getResources } from '../lib/api'
+import type { Resource } from '../types'
 
 const links = [
   { label: 'Home', path: '/' },
   { label: 'Learning', path: '/learning' },
-  { label: 'Scientists', path: '/scientists' },
+  { label: 'Articles', path: '/articles' },
   { label: 'Resources', path: '/resources' },
   { label: 'About', path: '/about' },
 ]
 
-const resourceCards = [
-  {
-    title: 'Learning paths',
-    description: 'Move from beginner lessons to advanced topics using the structured astronomy curriculum already built into the site.',
-    action: '/learning',
-    label: 'Open learning hub',
-  },
-  {
-    title: 'Visual materials',
-    description: 'Use the materials area for images, videos, and downloadable documents that support classroom or personal study.',
-    action: '/materials',
-    label: 'View materials',
-  },
-  {
-    title: 'Community discussion',
-    description: 'Ask questions, share observations, and compare notes with other astronomy learners in the chat area.',
-    action: '/chat',
-    label: 'Join chat',
-  },
-]
-
-const studyToolkit = [
-  {
-    title: 'Observation journal',
-    text: 'Track date, time, sky conditions, visible objects, and questions that come up during each session.',
-  },
-  {
-    title: 'Constellation checklist',
-    text: 'Practice identifying bright constellations one season at a time instead of trying to learn the whole sky at once.',
-  },
-  {
-    title: 'Question prompts',
-    text: 'Ask what you see, how it moves, what causes it, and how astronomers verify that explanation.',
-  },
-  {
-    title: 'Topic revision loop',
-    text: 'Read a lesson, observe the sky, revisit the lesson, then take the related quiz to lock in understanding.',
-  },
-]
+const typeIcons: Record<string, string> = {
+  book: '📚',
+  video: '🎥',
+  website: '🌐',
+  pdf: '📄',
+  tool: '🛠️',
+}
 
 export default function ResourcesPage() {
+  const [resources, setResources] = useState<Resource[]>([])
+  const [loading, setLoading] = useState(true)
   const [loginOpen, setLoginOpen] = useState(false)
+  const [selectedType, setSelectedType] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadResources = async () => {
+      try {
+        const data = await getResources()
+        setResources(data)
+      } catch (error) {
+        console.error('Failed to load resources:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadResources()
+  }, [])
+
+  const types = Array.from(new Set(resources.map((r) => r.type)))
+  const filteredResources = selectedType
+    ? resources.filter((r) => r.type === selectedType)
+    : resources
 
   return (
     <div className="relative min-h-screen bg-space-black text-white">
@@ -63,46 +54,85 @@ export default function ResourcesPage() {
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
       <main className="relative z-10 mx-auto max-w-7xl animate-fadeIn px-6 pb-20 pt-24">
-        <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-          <div>
-            <div className="inline-flex rounded-full border border-teal/30 bg-teal/10 px-4 py-2 text-sm text-teal">
-              Practical support for learners
-            </div>
-            <h1 className="mt-6 font-display text-4xl text-white sm:text-5xl">Astronomy resources for study, practice, and community learning</h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-              Use these resources to plan observations, review concepts, and connect site features into a smooth learning workflow.
-            </p>
+        <section className="mb-16">
+          <div className="inline-flex rounded-full border border-teal/30 bg-teal/10 px-4 py-2 text-sm text-teal">
+            Learning Resources
           </div>
-
-          <div className="overflow-hidden rounded-3xl border border-white/10 bg-deep-navy/80 p-4 backdrop-blur-sm">
-            <img src="/topic_planets.svg" alt="Planet themed astronomy illustration" className="h-full w-full rounded-2xl object-cover" />
-          </div>
+          <h1 className="mt-6 font-display text-4xl text-white sm:text-5xl">
+            Curated Tools & Materials for Astronomy Learning
+          </h1>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
+            Explore a collection of books, videos, websites, and tools recommended by astronomy educators and enthusiasts.
+          </p>
         </section>
 
-        <section className="mt-16 grid gap-6 lg:grid-cols-3">
-          {resourceCards.map((card) => (
-            <div key={card.title} className="rounded-3xl border border-white/10 bg-deep-navy/90 p-6">
-              <h2 className="font-display text-xl text-white">{card.title}</h2>
-              <p className="mt-3 text-sm leading-7 text-slate-300">{card.description}</p>
-              <Link to={card.action} className="mt-5 inline-flex rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">
-                {card.label}
-              </Link>
+        {types.length > 0 && (
+          <section className="mb-12">
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setSelectedType(null)}
+                className={`rounded-full px-4 py-2 font-semibold transition-all ${
+                  selectedType === null
+                    ? 'bg-teal text-slate-950'
+                    : 'border border-white/20 text-slate-300 hover:border-teal/40 hover:text-teal'
+                }`}
+              >
+                All Resources
+              </button>
+              {types.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedType(type)}
+                  className={`rounded-full px-4 py-2 font-semibold transition-all ${
+                    selectedType === type
+                      ? 'bg-teal text-slate-950'
+                      : 'border border-white/20 text-slate-300 hover:border-teal/40 hover:text-teal'
+                  }`}
+                >
+                  {typeIcons[type]} {type.charAt(0).toUpperCase() + type.slice(1)}
+                </button>
+              ))}
             </div>
-          ))}
-        </section>
+          </section>
+        )}
 
-        <section className="mt-16 rounded-3xl border border-white/10 bg-deep-navy/90 p-6">
-          <h2 className="font-display text-2xl text-white">Study toolkit</h2>
-          <p className="mt-2 text-slate-400">A few habits and tools can make astronomy learning more consistent, especially for self-guided study.</p>
-          <div className="mt-8 grid gap-4 md:grid-cols-2">
-            {studyToolkit.map((item) => (
-              <div key={item.title} className="rounded-2xl bg-navy/60 p-5">
-                <h3 className="font-display text-lg text-white">{item.title}</h3>
-                <p className="mt-2 text-sm leading-7 text-slate-300">{item.text}</p>
-              </div>
+        {loading ? (
+          <div className="grid gap-6 md:grid-cols-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-32 animate-pulse rounded-3xl bg-deep-navy/50" />
             ))}
           </div>
-        </section>
+        ) : (
+          <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredResources.map((resource) => (
+              <a
+                key={resource.id}
+                href={resource.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group overflow-hidden rounded-3xl border border-white/10 bg-deep-navy/90 p-6 transition-all hover:border-teal/40 hover:shadow-glow"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="text-3xl">{typeIcons[resource.type]}</div>
+                    <h3 className="mt-4 font-display text-xl text-white">{resource.title}</h3>
+                    <p className="mt-3 text-sm leading-6 text-slate-300">{resource.description}</p>
+                  </div>
+                </div>
+                <div className="mt-5 inline-flex items-center text-sm font-semibold text-teal transition-all group-hover:gap-2">
+                  Visit Resource
+                  <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
+                </div>
+              </a>
+            ))}
+          </section>
+        )}
+
+        {!loading && filteredResources.length === 0 && (
+          <div className="rounded-3xl border border-white/10 bg-deep-navy/90 p-12 text-center">
+            <p className="text-slate-400">No resources found in this category.</p>
+          </div>
+        )}
       </main>
 
       <Footer />
