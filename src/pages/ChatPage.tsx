@@ -4,9 +4,8 @@ import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
 import OnlineCounter from '../components/OnlineCounter'
-import StarField from '../components/StarField'
 import { useAuth } from '../context/AuthContext'
-import { getOnlineProfiles, getRecentMessages, getSupabaseStatusMessage } from '../lib/api'
+import { getOnlineProfiles, getRecentMessages } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import type { Message, Profile } from '../types'
 
@@ -58,7 +57,6 @@ export default function ChatPage() {
   const [uploading, setUploading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [lightbox, setLightbox] = useState<string | null>(null)
-  const [chatStatusMessage, setChatStatusMessage] = useState<string | null>(getSupabaseStatusMessage())
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -69,7 +67,6 @@ export default function ChatPage() {
 
     const loadData = async () => {
       const [chatMessages, online] = await Promise.all([getRecentMessages(), getOnlineProfiles()])
-      setChatStatusMessage(getSupabaseStatusMessage())
       if (!mounted) return
       setMessages(chatMessages.length ? chatMessages : demoMessages)
       setOnlineUsers(online)
@@ -77,6 +74,11 @@ export default function ChatPage() {
 
     const updatePresence = async () => {
       if (!supabase) return
+
+      await supabase
+        .from('online_presence')
+        .upsert({ id: profile.id, last_seen: new Date().toISOString() })
+
       const online = await getOnlineProfiles()
       if (!mounted) return
       setOnlineUsers(online)
@@ -161,7 +163,6 @@ export default function ChatPage() {
     })
 
     if (error) {
-      setChatStatusMessage(error.message)
       toast.error(error.message)
       return
     }
@@ -188,157 +189,151 @@ export default function ChatPage() {
       if (error) throw error
       const { data: publicUrlData } = supabase.storage.from('chat-images').getPublicUrl(data.path)
       setImagePreview(publicUrlData.publicUrl)
-      setChatStatusMessage(getSupabaseStatusMessage())
       toast.success('Image uploaded successfully.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to upload image.'
-      setChatStatusMessage(`${message} Check the "chat-images" storage bucket if this keeps happening.`)
-      toast.error(message)
+      toast.error(error instanceof Error ? error.message : 'Failed to upload image.')
     } finally {
       setUploading(false)
     }
   }
 
-  if (!profile) {
-    return (
-      <div className="relative min-h-screen bg-space-black text-white">
-        <StarField />
-        <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
-        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
-        <main className="relative z-10 flex min-h-screen items-center justify-center px-6 pt-16">
-          <div className="max-w-xl rounded-3xl border border-white/10 bg-deep-navy/90 p-10 text-center">
-            <h1 className="font-display text-3xl text-white">Please sign in to join the community chat</h1>
-            <p className="mt-4 text-lg leading-8 text-slate-300">Connect with fellow learners, ask astronomy questions, and share discoveries together.</p>
-            <button onClick={() => setLoginOpen(true)} className="mt-8 rounded-lg bg-teal px-8 py-3 font-semibold text-slate-950">
-              Sign In
-            </button>
-          </div>
-        </main>
+  const pageShell = (content: React.ReactNode) => (
+    <div className="relative min-h-screen overflow-hidden bg-space-black text-white">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(245,197,66,0.1),_transparent_35%),linear-gradient(180deg,_rgba(5,10,26,0.78),_rgba(5,10,26,0.96))]" />
+      <div className="fixed inset-0 bg-space-black/70" />
+      <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+      {content}
+      <div className="relative z-10">
         <Footer />
       </div>
+    </div>
+  )
+
+  if (!profile) {
+    return pageShell(
+      <main className="relative z-10 flex min-h-screen items-center justify-center px-6 pt-16">
+        <div className="max-w-xl rounded-3xl border border-white/10 bg-deep-navy/90 p-10 text-center shadow-xl shadow-black/30">
+          <h1 className="font-display text-3xl text-gold">Please sign in to join the community chat</h1>
+          <p className="mt-4 text-lg leading-8 text-slate-300">Connect with fellow learners, ask astronomy questions, and share discoveries together.</p>
+          <button onClick={() => setLoginOpen(true)} className="mt-8 rounded-lg bg-teal px-8 py-3 font-semibold text-slate-950">
+            Sign In
+          </button>
+        </div>
+      </main>,
     )
   }
 
-  return (
-    <div className="relative min-h-screen bg-space-black text-white">
-      <StarField />
-      <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
-
-      <main className="relative z-10 mx-auto flex min-h-screen max-w-7xl animate-fadeIn gap-6 px-6 pb-8 pt-20">
-        <aside className="hidden w-64 rounded-3xl border border-white/10 bg-deep-navy/90 p-5 lg:block">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-xl text-white">Online Now</h2>
-            <OnlineCounter />
-          </div>
-          <div className="mt-6 space-y-3 overflow-y-auto">
-            {(onlineUsers.length ? onlineUsers : [profile]).map((person) => (
-              <div key={person.id} className="flex items-center gap-3 rounded-2xl bg-navy/60 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/20 text-teal">{(person.username ?? 'U')[0]}</div>
-                <div>
-                  <div className="text-sm font-semibold text-white">{person.username ?? 'Explorer'}</div>
-                  <div className="text-xs text-slate-400">Active now</div>
-                </div>
+  return pageShell(
+    <main className="relative z-10 mx-auto flex min-h-screen max-w-7xl animate-fadeIn gap-6 px-6 pb-8 pt-20">
+      <aside className="hidden w-64 rounded-3xl border border-white/10 bg-deep-navy/90 p-5 lg:block">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl text-white">Online Now</h2>
+          <OnlineCounter />
+        </div>
+        <div className="mt-6 space-y-3 overflow-y-auto">
+          {(onlineUsers.length ? onlineUsers : [profile]).map((person) => (
+            <div key={person.id} className="flex items-center gap-3 rounded-2xl bg-navy/60 px-4 py-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/20 text-teal">{(person.username ?? 'U')[0]}</div>
+              <div>
+                <div className="text-sm font-semibold text-white">{person.username ?? 'Explorer'}</div>
+                <div className="text-xs text-slate-400">Active now</div>
               </div>
-            ))}
-          </div>
-        </aside>
+            </div>
+          ))}
+        </div>
+      </aside>
 
-        <section className="flex flex-1 flex-col rounded-3xl border border-white/10 bg-deep-navy/90">
-          <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-            <h1 className="font-display text-2xl text-white">Community Chat</h1>
-            <OnlineCounter />
-          </div>
-          {chatStatusMessage && (
-            <div className="mx-6 mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-              {chatStatusMessage}
+      <section className="flex flex-1 flex-col rounded-3xl border border-white/10 bg-deep-navy/90 shadow-xl shadow-black/25">
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+          <h1 className="font-display text-2xl text-gold">Community Chat</h1>
+          <OnlineCounter />
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
+          {groupedMessages.length ? (
+            groupedMessages.map((group) => (
+              <Fragment key={group.dateLabel}>
+                <div className="flex items-center gap-4 py-2 text-xs uppercase tracking-[0.25em] text-slate-500">
+                  <div className="h-px flex-1 bg-white/10" />
+                  <span>{group.dateLabel}</span>
+                  <div className="h-px flex-1 bg-white/10" />
+                </div>
+                {group.items.map((message) => {
+                  const own = message.user_id === profile.id
+                  return (
+                    <div
+                      key={message.id}
+                      className={`max-w-3xl rounded-2xl border p-4 shadow-lg shadow-black/10 ${own ? 'ml-auto border-teal/30 bg-teal/10' : 'border-gold/20 bg-navy/70'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-full ${own ? 'bg-teal/20 text-teal' : 'bg-gold/20 text-gold'}`}>
+                          {(message.profiles?.username ?? 'U')[0]}
+                        </div>
+                        <div>
+                          <div className={`font-semibold ${own ? 'text-teal' : 'text-gold'}`}>{message.profiles?.username ?? 'Community Member'}</div>
+                          <div className="text-xs text-slate-400">{new Date(message.created_at).toLocaleString()}</div>
+                        </div>
+                      </div>
+                      {message.content && <p className="mt-4 text-base leading-7 text-white">{message.content}</p>}
+                      {message.image_url && (
+                        <button className="mt-4" onClick={() => setLightbox(message.image_url)}>
+                          <img src={message.image_url} alt="Shared upload" className="max-w-xs rounded-2xl" />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </Fragment>
+            ))
+          ) : (
+            <div className="rounded-2xl border border-dashed border-white/10 bg-navy/40 p-8 text-center text-slate-400">
+              No messages yet. Be the first to say hello!
             </div>
           )}
+          <div ref={bottomRef} />
+        </div>
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
-            {groupedMessages.length ? (
-              groupedMessages.map((group) => (
-                <Fragment key={group.dateLabel}>
-                  <div className="flex items-center gap-4 py-2 text-xs uppercase tracking-[0.25em] text-slate-500">
-                    <div className="h-px flex-1 bg-white/10" />
-                    <span>{group.dateLabel}</span>
-                    <div className="h-px flex-1 bg-white/10" />
-                  </div>
-                  {group.items.map((message) => {
-                    const own = message.user_id === profile.id
-                    return (
-                      <div key={message.id} className={`max-w-3xl rounded-2xl p-4 ${own ? 'ml-auto bg-navy' : 'border border-white/5 bg-deep-navy'}`}>
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal/20 text-teal">
-                            {(message.profiles?.username ?? 'U')[0]}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-white">{message.profiles?.username ?? 'Community Member'}</div>
-                            <div className="text-xs text-slate-400">{new Date(message.created_at).toLocaleString()}</div>
-                          </div>
-                        </div>
-                        {message.content && <p className="mt-4 text-slate-200">{message.content}</p>}
-                        {message.image_url && (
-                          <button className="mt-4" onClick={() => setLightbox(message.image_url)}>
-                            <img src={message.image_url} alt="Shared upload" className="max-w-xs rounded-2xl" />
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </Fragment>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-navy/40 p-8 text-center text-slate-400">
-                No messages yet. Be the first to say hello!
-              </div>
-            )}
-            <div ref={bottomRef} />
-          </div>
-
-          <div className="sticky bottom-0 border-t border-white/10 bg-deep-navy/95 px-4 py-4">
-            {imagePreview && (
-              <div className="mb-3 flex items-center gap-3">
-                <img src={imagePreview} alt="Upload preview" className="h-16 w-16 rounded-xl object-cover" />
-                <button onClick={() => setImagePreview(null)} className="text-sm text-slate-400 hover:text-teal">Remove</button>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <label className="cursor-pointer rounded-xl bg-navy px-4 py-3 text-slate-300">
-                {uploading ? '...' : '🖼️'}
-                <input type="file" accept="image/*" className="hidden" onChange={(event) => void handleImageUpload(event.target.files?.[0])} />
-              </label>
-              <input
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    void handleSend()
-                  }
-                }}
-                placeholder="Type a message..."
-                className="flex-1 rounded-xl border border-white/10 bg-navy px-4 py-3 text-white outline-none focus:border-teal"
-              />
-              <button
-                onClick={() => void handleSend()}
-                disabled={!input.trim() && !imagePreview}
-                className="rounded-xl bg-teal px-5 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Send
-              </button>
+        <div className="sticky bottom-0 border-t border-white/10 bg-deep-navy/95 px-4 py-4">
+          {imagePreview && (
+            <div className="mb-3 flex items-center gap-3">
+              <img src={imagePreview} alt="Upload preview" className="h-16 w-16 rounded-xl object-cover" />
+              <button onClick={() => setImagePreview(null)} className="text-sm text-slate-400 hover:text-teal">Remove</button>
             </div>
+          )}
+          <div className="flex items-center gap-3">
+            <label className="cursor-pointer rounded-xl bg-navy px-4 py-3 text-slate-300">
+              {uploading ? '...' : '🖼️'}
+              <input type="file" accept="image/*" className="hidden" onChange={(event) => void handleImageUpload(event.target.files?.[0])} />
+            </label>
+            <input
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  void handleSend()
+                }
+              }}
+              placeholder="Type a message..."
+              className="flex-1 rounded-xl border border-white/10 bg-navy px-4 py-3 text-white outline-none focus:border-teal"
+            />
+            <button
+              onClick={() => void handleSend()}
+              disabled={!input.trim() && !imagePreview}
+              className="rounded-xl bg-teal px-5 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Send
+            </button>
           </div>
-        </section>
-      </main>
+        </div>
+      </section>
 
       {lightbox && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4" onClick={() => setLightbox(null)}>
           <img src={lightbox} alt="Expanded upload" className="max-h-[85vh] max-w-full rounded-3xl" />
         </div>
       )}
-
-      <Footer />
-    </div>
+    </main>,
   )
 }

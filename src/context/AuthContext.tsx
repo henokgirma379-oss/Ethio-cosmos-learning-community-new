@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
 import type { Profile } from '../types'
-import { supabase, supabaseConfigError } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 
 interface AuthContextType {
   user: User | null
@@ -32,28 +32,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [authMessage, setAuthMessage] = useState<string | null>(supabaseConfigError)
+  const [authMessage, setAuthMessage] = useState<string | null>(null)
 
   const fetchProfile = async (userId: string) => {
     if (!supabase) return
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
-
-    if (error) {
-      setAuthMessage(`Unable to load your profile: ${error.message}`)
-      return
-    }
-
-    if (data) {
-      setProfile(data as Profile)
-      setAuthMessage(null)
-    }
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    if (data) setProfile(data as Profile)
   }
 
   const updatePresence = async (userId: string) => {
     if (!supabase) return
-    await supabase
-      .from('online_presence')
-      .upsert({ id: userId, last_seen: new Date().toISOString() })
+    await supabase.from('online_presence').upsert({ id: userId, last_seen: new Date().toISOString() })
   }
 
   useEffect(() => {
@@ -62,15 +51,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        setAuthMessage(`Unable to read Supabase session: ${error.message}`)
-      }
+    let presenceInterval: ReturnType<typeof setInterval> | null = null
+
+    const startPresence = (userId: string) => {
+      void updatePresence(userId)
+      if (presenceInterval) clearInterval(presenceInterval)
+      presenceInterval = setInterval(() => {
+        void updatePresence(userId)
+      }, 90_000)
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
-        fetchProfile(session.user.id)
-        void updatePresence(session.user.id)
+        void fetchProfile(session.user.id)
+        startPresence(session.user.id)
       }
       setLoading(false)
     })
@@ -82,68 +78,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(nextSession?.user ?? null)
       if (nextSession?.user) {
         void fetchProfile(nextSession.user.id)
-        void updatePresence(nextSession.user.id)
+        startPresence(nextSession.user.id)
       } else {
         setProfile(null)
-        setAuthMessage(supabaseConfigError)
+        if (presenceInterval) {
+          clearInterval(presenceInterval)
+          presenceInterval = null
+        }
       }
       setLoading(false)
     })
 
-    let heartbeat: ReturnType<typeof setInterval> | null = null
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      if (s?.user) {
-        heartbeat = setInterval(() => {
-          void updatePresence(s.user.id)
-        }, 90_000)
-      }
-    })
-
     return () => {
       subscription.unsubscribe()
-      if (heartbeat) clearInterval(heartbeat)
+      if (presenceInterval) clearInterval(presenceInterval)
     }
   }, [])
 
   const signInWithGoogle = async () => {
     if (!supabase) {
-      throw new Error(supabaseConfigError ?? 'Supabase authentication is not configured.')
+      setProfile(mockProfile)
+      toast.success('Demo sign-in enabled without Supabase credentials.')
+      return
     }
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin },
     })
-    if (error) throw new Error(`Google sign-in failed: ${error.message}`)
+    if (error) throw error
   }
 
   const signInWithEmail = async (email: string, password: string) => {
     if (!supabase) {
-      throw new Error(supabaseConfigError ?? 'Supabase email sign-in is not configured.')
+      setProfile({ ...mockProfile, username: email.split('@')[0] || 'Guest Explorer' })
+      toast.success(`Welcome back, ${email.split('@')[0] || 'Explorer'}!`)
+      return
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw new Error(`Email sign-in failed: ${error.message}`)
-    setAuthMessage(null)
+    if (error) throw error
   }
 
   const signUpWithEmail = async (email: string, password: string) => {
     if (!supabase) {
-      throw new Error(supabaseConfigError ?? 'Supabase sign-up is not configured.')
+      setProfile({ ...mockProfile, username: email.split('@')[0] || 'New Explorer' })
+      toast.success('Demo account created successfully.')
+      return
     }
 
     const { error } = await supabase.auth.signUp({ email, password })
-    if (error) throw new Error(`Sign-up failed: ${error.message}`)
-    setAuthMessage(null)
+    if (error) throw error
+    setAuthMessage('Check your email for a confirmation link before signing in.')
   }
 
   const signOut = async () => {
     if (!supabase) {
-      throw new Error(supabaseConfigError ?? 'Supabase sign-out is not configured.')
+      setProfile(null)
+      toast.success('Signed out successfully.')
+      return
     }
 
     const { error } = await supabase.auth.signOut()
-    if (error) throw new Error(`Sign-out failed: ${error.message}`)
+    if (error) throw error
     setProfile(null)
     toast.success('Signed out successfully.')
   }

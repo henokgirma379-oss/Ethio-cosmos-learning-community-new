@@ -4,16 +4,22 @@ import toast from 'react-hot-toast'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
-import StarField from '../components/StarField'
 import { useAuth } from '../context/AuthContext'
-import { getCompletedLessonIds, getLessonBySlugs, markLessonComplete } from '../lib/api'
+import {
+  addBookmark,
+  getBookmarkedLessonIds,
+  getCompletedLessonIds,
+  getLessonBySlugs,
+  markLessonComplete,
+  removeBookmark,
+} from '../lib/api'
 import type { Lesson, Topic } from '../types'
 
 const links = [
   { label: 'Home', path: '/' },
   { label: 'Learning', path: '/learning' },
-  { label: 'Scientists', path: '/scientists' },
-  { label: 'Resources', path: '/resources' },
+  { label: 'Materials', path: '/materials' },
+  { label: 'Chat', path: '/chat' },
   { label: 'About', path: '/about' },
 ]
 
@@ -34,6 +40,7 @@ export default function LessonPage() {
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([])
+  const [isBookmarked, setIsBookmarked] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
 
   useEffect(() => {
@@ -55,6 +62,17 @@ export default function LessonPage() {
     })
   }, [user])
 
+  useEffect(() => {
+    if (!user || !lesson) {
+      setIsBookmarked(false)
+      return
+    }
+
+    void getBookmarkedLessonIds(user.id).then((ids) => {
+      setIsBookmarked(ids.includes(lesson.id))
+    })
+  }, [user, lesson])
+
   const currentIndex = useMemo(() => lessons.findIndex((item) => item.slug === lessonSlug), [lessons, lessonSlug])
   const previousLesson = currentIndex > 0 ? lessons[currentIndex - 1] : null
   const nextLesson = currentIndex >= 0 && currentIndex < lessons.length - 1 ? lessons[currentIndex + 1] : null
@@ -67,9 +85,29 @@ export default function LessonPage() {
     toast.success('Lesson marked as complete!')
   }
 
+  const handleBookmarkToggle = async () => {
+    if (!lesson) return
+    if (!user) {
+      setLoginOpen(true)
+      return
+    }
+
+    if (isBookmarked) {
+      await removeBookmark(user.id, lesson.id)
+      setIsBookmarked(false)
+      toast.success('Bookmark removed.')
+      return
+    }
+
+    await addBookmark(user.id, lesson.id)
+    setIsBookmarked(true)
+    toast.success('Lesson bookmarked!')
+  }
+
   return (
-    <div className="relative min-h-screen bg-space-black text-white">
-      <StarField />
+    <div className="relative min-h-screen overflow-hidden bg-space-black text-white">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,200,200,0.1),_transparent_30%),linear-gradient(180deg,_rgba(5,10,26,0.78),_rgba(5,10,26,0.96))]" />
+      <div className="fixed inset-0 bg-space-black/70" />
       <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
@@ -87,9 +125,9 @@ export default function LessonPage() {
                 {topic.title}
               </div>
               <div className="space-y-2">{renderContent(lesson.content)}</div>
-              {user && (
-                <div className="mt-8">
-                  {isCompleted ? (
+              <div className="mt-8 flex flex-wrap gap-3">
+                {user && (
+                  isCompleted ? (
                     <button disabled className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">
                       ✓ Completed
                     </button>
@@ -97,9 +135,15 @@ export default function LessonPage() {
                     <button onClick={() => void handleMarkComplete()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">
                       ✓ Mark as Complete
                     </button>
-                  )}
-                </div>
-              )}
+                  )
+                )}
+                <button
+                  onClick={() => void handleBookmarkToggle()}
+                  className={`rounded-lg px-5 py-3 font-semibold transition ${isBookmarked ? 'bg-gold text-slate-950' : 'border border-white/10 bg-navy/60 text-slate-200 hover:border-teal hover:text-teal'}`}
+                >
+                  {isBookmarked ? '★ Bookmarked' : '☆ Bookmark this lesson'}
+                </button>
+              </div>
               <div className="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:justify-between">
                 {previousLesson ? (
                   <Link to={`/learning/${slug}/${previousLesson.slug}`} className="rounded-lg border border-white/10 px-5 py-3 text-slate-300 hover:border-teal/30 hover:text-teal">
@@ -125,7 +169,8 @@ export default function LessonPage() {
                       to={`/learning/${slug}/${item.slug}`}
                       className={`block rounded-xl px-4 py-3 text-sm transition ${item.slug === lesson.slug ? 'bg-teal/10 text-teal' : 'bg-navy/60 text-slate-300 hover:text-teal'}`}
                     >
-                      {index + 1}. {item.title}{itemCompleted ? ' ✓' : ''}
+                      <span>{index + 1}. {item.title}</span>
+                      {itemCompleted ? <span className="ml-2 text-green-400">✓</span> : null}
                     </Link>
                   )
                 })}
@@ -137,7 +182,9 @@ export default function LessonPage() {
         )}
       </main>
 
-      <Footer />
+      <div className="relative z-10">
+        <Footer />
+      </div>
     </div>
   )
 }

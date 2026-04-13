@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
-import StarField from '../components/StarField'
 import { getAboutContent } from '../lib/api'
 import type { PageContent } from '../types'
 
@@ -49,8 +47,9 @@ export default function AboutPage() {
   const whoImages = whoWeAre.filter((item) => item.content_type === 'image').map((item) => item.image_url).filter(Boolean) as string[]
 
   return (
-    <div className="relative min-h-screen bg-space-black text-white">
-      <StarField />
+    <div className="relative min-h-screen overflow-hidden bg-space-black text-white">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,200,200,0.12),_transparent_30%),linear-gradient(180deg,_rgba(5,10,26,0.76),_rgba(5,10,26,0.95))]" />
+      <div className="fixed inset-0 bg-space-black/70" />
       <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
@@ -110,21 +109,11 @@ export default function AboutPage() {
             ))}
           </div>
         </section>
-
-        <section className="mx-auto max-w-6xl px-6 py-16">
-          <div className="rounded-3xl border border-teal/20 bg-gradient-to-r from-navy to-teal/20 px-8 py-12 text-center">
-            <h2 className="font-display text-3xl text-white">Join Our Community</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-slate-200">
-              Step into a growing astronomy learning movement and explore the universe with fellow dreamers and doers.
-            </p>
-            <Link to="/learning" className="mt-8 inline-block rounded-lg bg-teal px-10 py-4 text-lg font-semibold text-slate-950">
-              Get Started
-            </Link>
-          </div>
-        </section>
       </main>
 
-      <Footer />
+      <div className="relative z-10">
+        <Footer />
+      </div>
     </div>
   )
 }

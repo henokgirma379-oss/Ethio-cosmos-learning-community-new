@@ -12,52 +12,48 @@ const links = [
 ]
 
 const scientists = [
-  { name: 'Galileo Galilei', years: '1564–1642', field: 'Observational Astronomy', contribution: 'Improved the telescope and confirmed the heliocentric model through direct observation of Jupiter\'s moons and Venus\'s phases.', emoji: '🔭' },
-  { name: 'Johannes Kepler', years: '1571–1630', field: 'Orbital Mechanics', contribution: 'Formulated the three laws of planetary motion, showing orbits are ellipses — not circles.', emoji: '🪐' },
-  { name: 'Isaac Newton', years: '1643–1727', field: 'Physics & Gravitation', contribution: 'Derived the law of universal gravitation, explaining why planets orbit the Sun.', emoji: '🍎' },
-  { name: 'Edwin Hubble', years: '1889–1953', field: 'Extragalactic Astronomy', contribution: 'Proved galaxies exist beyond the Milky Way and discovered the expanding universe.', emoji: '🌌' },
-  { name: 'Carl Sagan', years: '1934–1996', field: 'Planetary Science & Science Communication', contribution: 'Pioneered public science education and contributed to planetary exploration missions.', emoji: '🌠' },
-  { name: 'Vera Rubin', years: '1928–2016', field: 'Dark Matter Research', contribution: 'Provided the first compelling observational evidence for the existence of dark matter.', emoji: '🌑' },
-  { name: 'Annie Jump Cannon', years: '1863–1941', field: 'Stellar Classification', contribution: 'Created the Harvard spectral classification system, cataloguing over 350,000 stars.', emoji: '⭐' },
-  { name: 'Katherine Johnson', years: '1918–2020', field: 'Orbital Mechanics & Space Math', contribution: 'Calculated the flight trajectories for NASA\'s Apollo 11 Moon landing and many other missions.', emoji: '🚀' },
+  { emoji: '🌍', name: 'Benjamin Banneker', field: 'Astronomy & Mathematics', years: '1731–1806', contribution: 'Calculated eclipse data, published almanacs, and promoted scientific learning for broader communities.' },
+  { emoji: '✨', name: 'Wangari Maathai', field: 'Environmental Science', years: '1940–2011', contribution: 'Though not an astronomer, her scientific leadership and public education inspire African science engagement and stewardship.' },
+  { emoji: '🛰️', name: 'Neil deGrasse Tyson', field: 'Astrophysics', years: '1958–present', contribution: 'Popularized astrophysics for global audiences through accessible talks, books, and public science outreach.' },
+  { emoji: '🌌', name: 'Galileo Galilei', field: 'Observational Astronomy', years: '1564–1642', contribution: 'Used telescopes to observe moons of Jupiter, phases of Venus, and evidence that transformed astronomy.' },
+  { emoji: '🔭', name: 'Vera Rubin', field: 'Galaxy Dynamics', years: '1928–2016', contribution: 'Provided strong evidence for dark matter through galaxy rotation studies.' },
+  { emoji: '🧠', name: 'Katherine Johnson', field: 'Space Mathematics', years: '1918–2020', contribution: 'Calculated crucial orbital trajectories for NASA missions and advanced public recognition of women in science.' },
+  { emoji: '☀️', name: 'Subrahmanyan Chandrasekhar', field: 'Stellar Physics', years: '1910–1995', contribution: 'Explained stellar evolution limits and laid foundations for black hole theory.' },
+  { emoji: '🌠', name: 'Beth Brown', field: 'Astrophysics', years: '1969–2008', contribution: 'Researched elliptical galaxies and inspired students through science communication and mentorship.' },
 ]
 
 export default function ScientistsPage() {
   const [loginOpen, setLoginOpen] = useState(false)
 
   return (
-    <div
-      className="relative min-h-screen text-white"
-      style={{
-        backgroundImage: 'url(/topic_nebulae.svg)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed',
-      }}
-    >
-      <div className="fixed inset-0 z-0 bg-black/55" />
+    <div className="relative min-h-screen overflow-hidden bg-space-black text-white">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(245,197,66,0.12),_transparent_30%),linear-gradient(180deg,_rgba(5,10,26,0.76),_rgba(5,10,26,0.95))]" />
+      <div className="fixed inset-0 bg-space-black/70" />
+      <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
+      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+
+      <main className="relative z-10 mx-auto max-w-7xl px-6 pb-20 pt-24">
+        <section className="rounded-3xl border border-white/10 bg-deep-navy/80 p-8 text-center">
+          <h1 className="font-display text-4xl text-white sm:text-5xl">Scientists Who Shaped Our View of the Universe</h1>
+          <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-300">
+            Meet scientists, educators, and scientific pioneers whose work helps learners understand space, motion, matter, and discovery.
+          </p>
+        </section>
+
+        <section className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          {scientists.map((scientist) => (
+            <article key={scientist.name} className="rounded-3xl border border-white/10 bg-deep-navy/80 p-6 shadow-lg shadow-black/20">
+              <div className="text-4xl">{scientist.emoji}</div>
+              <h2 className="mt-4 text-2xl font-semibold text-white">{scientist.name}</h2>
+              <p className="mt-2 text-sm font-semibold text-teal">{scientist.field}</p>
+              <p className="mt-1 text-sm text-slate-400">{scientist.years}</p>
+              <p className="mt-4 text-sm leading-7 text-slate-300">{scientist.contribution}</p>
+            </article>
+          ))}
+        </section>
+      </main>
+
       <div className="relative z-10">
-        <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
-        <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
-
-        <main className="mx-auto max-w-6xl animate-fadeIn px-6 pb-24 pt-28">
-          <h1 className="font-display text-5xl font-extrabold text-white">Pioneering Scientists</h1>
-          <div className="mt-2 h-1 w-16 rounded-full bg-teal" />
-          <p className="mt-4 text-slate-300">The brilliant minds who unlocked our understanding of the cosmos.</p>
-
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {scientists.map((s) => (
-              <div key={s.name} className="rounded-2xl border border-white/10 bg-[#0a1628]/80 p-6 backdrop-blur-sm transition hover:border-teal/30">
-                <div className="text-4xl">{s.emoji}</div>
-                <h3 className="mt-4 font-display text-xl font-bold text-white">{s.name}</h3>
-                <p className="mt-1 text-sm text-teal">{s.field}</p>
-                <p className="text-xs text-slate-500">{s.years}</p>
-                <p className="mt-3 text-sm leading-6 text-slate-300">{s.contribution}</p>
-              </div>
-            ))}
-          </div>
-        </main>
-
         <Footer />
       </div>
     </div>

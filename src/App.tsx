@@ -11,10 +11,10 @@ import LearningPage from './pages/LearningPage'
 import LessonPage from './pages/LessonPage'
 import MaterialsPage from './pages/MaterialsPage'
 import NotFoundPage from './pages/NotFoundPage'
+import QuizPage from './pages/QuizPage'
 import ResourcesPage from './pages/ResourcesPage'
 import ScientistsPage from './pages/ScientistsPage'
 import TopicDetailPage from './pages/TopicDetailPage'
-import QuizPage from './pages/QuizPage'
 
 export default function App() {
   return (
