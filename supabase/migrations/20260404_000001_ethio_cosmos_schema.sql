@@ -97,8 +97,6 @@ alter table public.materials enable row level security;
 alter table public.topics enable row level security;
 alter table public.lessons enable row level security;
 
-create unique index if not exists page_content_page_section_idx on public.page_content(page, section);
-
 drop policy if exists "profiles_read_all" on public.profiles;
 create policy "profiles_read_all" on public.profiles for select using (true);
 
@@ -186,12 +184,9 @@ create table if not exists public.quiz_questions (
   id uuid default gen_random_uuid() primary key,
   topic_id uuid references public.topics(id) on delete cascade,
   question text not null,
-  option_a text not null,
-  option_b text not null,
-  option_c text not null,
-  option_d text not null,
-  correct_option text check (correct_option in ('a','b','c','d')) not null,
-  order_index int default 0,
+  options jsonb not null default '[]'::jsonb,
+  correct_answer text not null,
+  explanation text,
   created_at timestamptz default now()
 );
 
@@ -199,8 +194,8 @@ create table if not exists public.quiz_attempts (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references public.profiles(id) on delete cascade,
   topic_id uuid references public.topics(id) on delete cascade,
-  score int not null,
-  total int not null,
+  score int default 0,
+  total_questions int default 0,
   attempted_at timestamptz default now()
 );
 
@@ -227,11 +222,7 @@ create policy "quiz_questions_write" on public.quiz_questions for all using (
 );
 
 drop policy if exists "quiz_attempts_own" on public.quiz_attempts;
-create policy "quiz_attempts_own" on public.quiz_attempts for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+create policy "quiz_attempts_own" on public.quiz_attempts for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 drop policy if exists "bookmarks_own" on public.bookmarks;
-create policy "bookmarks_own" on public.bookmarks for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+create policy "bookmarks_own" on public.bookmarks for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

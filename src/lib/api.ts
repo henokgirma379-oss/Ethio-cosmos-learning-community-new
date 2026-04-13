@@ -315,3 +315,4 @@ export async function getBookmarkedLessons(userId: string): Promise<Lesson[]> {
     .map((row) => (Array.isArray(row.lessons) ? row.lessons[0] ?? null : row.lessons))
     .filter((lesson): lesson is Lesson => lesson !== null)
 }
+

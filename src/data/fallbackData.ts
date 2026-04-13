@@ -1,5 +1,18 @@
 import type { Lesson, Material, PageContent, Topic, Article, Scientist, Resource } from '../types'
 
+const topicImageMap: Record<string, string> = {
+  fundamentals: '/topic_fundamentals.svg',
+  ethiopia: '/topic_ethiopia.svg',
+  'solar-system': '/topic_solar_system.svg',
+  planets: '/topic_planets.svg',
+  moon: '/topic_moon.svg',
+  stars: '/topic_stars.svg',
+  'black-holes': '/topic_black_holes.svg',
+  wormholes: '/topic_wormholes.svg',
+  nebulae: '/topic_nebulae.svg',
+  asteroids: '/topic_asteroids.svg',
+}
+
 export const fallbackTopics: Topic[] = [
   {
     id: '1',
@@ -11,6 +24,7 @@ export const fallbackTopics: Topic[] = [
     icon: '✨',
     color_accent: '#00c8c8',
     order_index: 1,
+    image_url: topicImageMap.fundamentals,
   },
   {
     id: '2',
@@ -22,6 +36,7 @@ export const fallbackTopics: Topic[] = [
     icon: '🇪🇹',
     color_accent: '#f5c542',
     order_index: 2,
+    image_url: topicImageMap.ethiopia,
   },
   {
     id: '3',
@@ -33,6 +48,7 @@ export const fallbackTopics: Topic[] = [
     icon: '☀️',
     color_accent: '#00c8c8',
     order_index: 3,
+    image_url: topicImageMap['solar-system'],
   },
   {
     id: '4',
@@ -44,6 +60,7 @@ export const fallbackTopics: Topic[] = [
     icon: '🪐',
     color_accent: '#00c8c8',
     order_index: 4,
+    image_url: topicImageMap.planets,
   },
   {
     id: '5',
@@ -55,6 +72,7 @@ export const fallbackTopics: Topic[] = [
     icon: '🌙',
     color_accent: '#f5c542',
     order_index: 5,
+    image_url: topicImageMap.moon,
   },
   {
     id: '6',
@@ -66,6 +84,7 @@ export const fallbackTopics: Topic[] = [
     icon: '⭐',
     color_accent: '#f5c542',
     order_index: 6,
+    image_url: topicImageMap.stars,
   },
   {
     id: '7',
@@ -77,6 +96,7 @@ export const fallbackTopics: Topic[] = [
     icon: '🕳️',
     color_accent: '#7c5cbf',
     order_index: 7,
+    image_url: topicImageMap['black-holes'],
   },
   {
     id: '8',
@@ -88,6 +108,7 @@ export const fallbackTopics: Topic[] = [
     icon: '🌀',
     color_accent: '#7c5cbf',
     order_index: 8,
+    image_url: topicImageMap.wormholes,
   },
   {
     id: '9',
@@ -99,6 +120,7 @@ export const fallbackTopics: Topic[] = [
     icon: '🌌',
     color_accent: '#f5c542',
     order_index: 9,
+    image_url: topicImageMap.nebulae,
   },
   {
     id: '10',
@@ -110,6 +132,7 @@ export const fallbackTopics: Topic[] = [
     icon: '☄️',
     color_accent: '#f5c542',
     order_index: 10,
+    image_url: topicImageMap.asteroids,
   },
 ]
 

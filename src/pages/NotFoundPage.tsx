@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
-import StarField from '../components/StarField'
 
 export default function NotFoundPage() {
   return (
-    <div className="relative min-h-screen bg-space-black text-white">
-      <StarField />
+    <div className="relative min-h-screen overflow-hidden bg-space-black text-white">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,200,200,0.12),_transparent_30%),linear-gradient(180deg,_rgba(5,10,26,0.76),_rgba(5,10,26,0.95))]" />
+      <div className="fixed inset-0 bg-space-black/70" />
       <main className="relative z-10 flex min-h-screen items-center justify-center px-6">
         <div className="text-center">
           <div className="text-6xl">🪐</div>
@@ -14,7 +14,9 @@ export default function NotFoundPage() {
           <Link to="/" className="mt-8 inline-block rounded-lg bg-teal px-6 py-3 font-semibold text-slate-950">Go Home</Link>
         </div>
       </main>
-      <Footer />
+      <div className="relative z-10">
+        <Footer />
+      </div>
     </div>
   )
 }
