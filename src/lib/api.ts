@@ -1,5 +1,5 @@
 import { fallbackAboutContent, fallbackLessons, fallbackMaterials, fallbackTopics, fallbackArticles, fallbackScientists, fallbackResources } from '../data/fallbackData'
-import type { Lesson, Material, Message, PageContent, Profile, QuizAttempt, QuizQuestion, Topic, Article, Scientist, Resource } from '../types'
+import type { Lesson, LessonContentBlock, Material, Message, PageContent, Profile, QuizAttempt, QuizQuestion, Topic, Article, Scientist, Resource } from '../types'
 import { supabase, supabaseConfigError } from './supabase'
 
 const wait = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -316,3 +316,47 @@ export async function getBookmarkedLessons(userId: string): Promise<Lesson[]> {
     .filter((lesson): lesson is Lesson => lesson !== null)
 }
 
+
+
+export async function getLessonContentBlocks(lessonId: string): Promise<LessonContentBlock[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('lesson_content_blocks')
+    .select('*')
+    .eq('lesson_id', lessonId)
+    .order('block_order')
+  if (error) {
+    logSupabaseError('getLessonContentBlocks', error, { allowFallback: true, table: 'lesson_content_blocks' })
+    return []
+  }
+  return (data as LessonContentBlock[] | null) ?? []
+}
+
+export async function upsertLessonContentBlock(block: Partial<LessonContentBlock> & { lesson_id: string; block_type: LessonContentBlock['block_type']; block_order: number }): Promise<LessonContentBlock | null> {
+  if (!supabase) return null
+  const payload = { ...block, updated_at: new Date().toISOString() }
+  const { data, error } = await supabase
+    .from('lesson_content_blocks')
+    .upsert(payload)
+    .select()
+    .single()
+  if (error) {
+    logSupabaseError('upsertLessonContentBlock', error)
+    return null
+  }
+  return data as LessonContentBlock
+}
+
+export async function deleteLessonContentBlock(blockId: string): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase.from('lesson_content_blocks').delete().eq('id', blockId)
+  if (error) logSupabaseError('deleteLessonContentBlock', error)
+}
+
+export async function reorderLessonContentBlocks(blocks: { id: string; block_order: number }[]): Promise<void> {
+  if (!supabase) return
+  const updates = blocks.map(({ id, block_order }) =>
+    supabase!.from('lesson_content_blocks').update({ block_order, updated_at: new Date().toISOString() }).eq('id', id)
+  )
+  await Promise.all(updates)
+}

@@ -4,12 +4,19 @@ import toast from 'react-hot-toast'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
+import SecondaryNavbar from '../components/SecondaryNavbar'
 import StarField from '../components/StarField'
 import { useAuth } from '../context/AuthContext'
 import { fallbackTopics } from '../data/fallbackData'
-import { getSupabaseStatusMessage } from '../lib/api'
+import {
+  deleteLessonContentBlock,
+  getLessonContentBlocks,
+  getSupabaseStatusMessage,
+  reorderLessonContentBlocks,
+  upsertLessonContentBlock,
+} from '../lib/api'
 import { supabase, supabaseConfigError } from '../lib/supabase'
-import type { Lesson, Material, Message, PageContent, QuizQuestion, Topic } from '../types'
+import type { Lesson, LessonContentBlock, Material, Message, PageContent, QuizQuestion, Topic } from '../types'
 
 const links = [
   { label: 'Home', path: '/' },
@@ -68,6 +75,16 @@ export default function AdminPage() {
   const [newOptionD, setNewOptionD] = useState('')
   const [newCorrectOption, setNewCorrectOption] = useState<QuizQuestion['correct_option']>('a')
   const [adminStatusMessage, setAdminStatusMessage] = useState<string | null>(supabaseConfigError)
+  const [contentBlocks, setContentBlocks] = useState<LessonContentBlock[]>([])
+  const [showBlockEditor, setShowBlockEditor] = useState(false)
+  const [newBlockType, setNewBlockType] = useState<LessonContentBlock['block_type']>('text')
+  const [newBlockText, setNewBlockText] = useState('')
+  const [newBlockHeading, setNewBlockHeading] = useState('')
+  const [newBlockImageUrl, setNewBlockImageUrl] = useState('')
+  const [newBlockCaption, setNewBlockCaption] = useState('')
+  const [newBlockVideoUrl, setNewBlockVideoUrl] = useState('')
+  const [newBlockListItems, setNewBlockListItems] = useState('')
+  const blockImageInputRef = useRef<HTMLInputElement | null>(null)
 
   const currentTopic = useMemo(
     () => topics.find((topic) => topic.slug === selectedTopic) ?? topics[0] ?? fallbackTopics[0],
@@ -221,6 +238,15 @@ export default function AdminPage() {
     }
     if (activeTab === 'Quiz Manager') { void loadQuizQuestions() }
   }, [activeTab, currentTopic])
+
+  useEffect(() => {
+    const loadBlocks = async () => {
+      if (!selectedLesson || !supabase) { setContentBlocks([]); return }
+      const blocks = await getLessonContentBlocks(selectedLesson.id)
+      setContentBlocks(blocks)
+    }
+    void loadBlocks()
+  }, [selectedLesson])
 
   const requireSupabaseWrite = () => {
     if (supabase) return true
@@ -522,14 +548,82 @@ export default function AdminPage() {
     toast.success('Question deleted.')
   }
 
+  const handleAddBlock = async () => {
+    if (!selectedLesson) return
+    if (!requireSupabaseWrite()) return
+
+    const maxOrder = contentBlocks.reduce((max, b) => Math.max(max, b.block_order), -1)
+
+    const blockPayload: Parameters<typeof upsertLessonContentBlock>[0] = {
+      lesson_id: selectedLesson.id,
+      block_type: newBlockType,
+      block_order: maxOrder + 1,
+      text_content: newBlockType === 'text' ? newBlockText.trim() : null,
+      heading_text: newBlockType === 'heading' ? newBlockHeading.trim() : null,
+      image_url: newBlockType === 'image' ? newBlockImageUrl.trim() : null,
+      video_url: newBlockType === 'video' ? newBlockVideoUrl.trim() : null,
+      caption: ['image', 'video'].includes(newBlockType) ? newBlockCaption.trim() || null : null,
+      list_items: newBlockType === 'list' ? newBlockListItems.split('\n').map((s) => s.trim()).filter(Boolean) : null,
+    }
+
+    const inserted = await upsertLessonContentBlock(blockPayload)
+    if (inserted) {
+      setContentBlocks((prev) => [...prev, inserted])
+      setNewBlockText('')
+      setNewBlockHeading('')
+      setNewBlockImageUrl('')
+      setNewBlockCaption('')
+      setNewBlockVideoUrl('')
+      setNewBlockListItems('')
+      toast.success('Block added.')
+    } else {
+      toast.error('Failed to add block.')
+    }
+  }
+
+  const handleDeleteBlock = async (blockId: string) => {
+    if (!requireSupabaseWrite()) return
+    await deleteLessonContentBlock(blockId)
+    setContentBlocks((prev) => prev.filter((b) => b.id !== blockId))
+    toast.success('Block deleted.')
+  }
+
+  const handleMoveBlock = async (blockId: string, direction: 'up' | 'down') => {
+    const index = contentBlocks.findIndex((b) => b.id === blockId)
+    if (direction === 'up' && index === 0) return
+    if (direction === 'down' && index === contentBlocks.length - 1) return
+
+    const reordered = [...contentBlocks]
+    const swapIndex = direction === 'up' ? index - 1 : index + 1
+    ;[reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]]
+    const withNewOrder = reordered.map((b, i) => ({ ...b, block_order: i }))
+    setContentBlocks(withNewOrder)
+    await reorderLessonContentBlocks(withNewOrder.map((b) => ({ id: b.id, block_order: b.block_order })))
+  }
+
+  const handleBlockImageUpload = async (file: File | undefined) => {
+    if (!file || !supabase || !requireSupabaseWrite()) return
+    try {
+      const path = `lesson-blocks/${Date.now()}-${file.name.replace(/\s+/g, '-')}`
+      const { data, error } = await supabase.storage.from('materials').upload(path, file, { upsert: true, contentType: file.type })
+      if (error) throw error
+      const { data: urlData } = supabase.storage.from('materials').getPublicUrl(data.path)
+      setNewBlockImageUrl(urlData.publicUrl)
+      toast.success('Image uploaded. Review URL below before adding block.')
+    } catch (err) {
+      handleSupabaseError(err, 'Failed to upload block image.')
+    }
+  }
+
   if (!isAdmin) return <Navigate to="/" replace />
 
   return (
     <div className="relative min-h-screen bg-space-black text-white">
       <StarField />
       <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
+      <SecondaryNavbar />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
-      <main className="relative z-10 mx-auto grid min-h-screen max-w-7xl animate-fadeIn gap-6 px-6 pb-10 pt-20 lg:grid-cols-[280px_1fr]">
+      <main className="relative z-10 mx-auto grid min-h-screen max-w-7xl animate-fadeIn gap-6 px-6 pb-10 pt-32 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-3xl border border-white/10 bg-deep-navy/90 p-5">
           <h1 className="font-display text-2xl text-white">Admin Panel</h1>
           <div className="mt-6 space-y-3">
@@ -739,6 +833,122 @@ export default function AdminPage() {
                             <div className="flex flex-wrap gap-3">
                               <button onClick={() => void handleSaveLesson()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">Save Lesson</button>
                               <button onClick={() => void handleDeleteLesson()} className="rounded-lg border border-red-500/30 px-5 py-3 font-semibold text-red-400 hover:bg-red-500/10">Delete Lesson</button>
+                            </div>
+                            <div className="mt-6 border-t border-white/10 pt-6">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Content Blocks</h4>
+                                <button
+                                  onClick={() => setShowBlockEditor((prev) => !prev)}
+                                  className="rounded-xl border border-teal/30 bg-teal/10 px-3 py-1 text-xs font-semibold text-teal"
+                                >
+                                  {showBlockEditor ? 'Close Block Editor' : '+ Add Block'}
+                                </button>
+                              </div>
+
+                              {contentBlocks.length > 0 && (
+                                <div className="mt-4 space-y-2">
+                                  {contentBlocks.map((block, i) => (
+                                    <div key={block.id} className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-deep-navy/70 px-4 py-3">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">{block.block_type}</div>
+                                        <div className="mt-1 truncate text-sm text-white">
+                                          {block.block_type === 'heading' && block.heading_text}
+                                          {block.block_type === 'text' && block.text_content?.slice(0, 80)}
+                                          {block.block_type === 'image' && (block.caption || block.image_url?.slice(0, 60))}
+                                          {block.block_type === 'video' && (block.caption || block.video_url?.slice(0, 60))}
+                                          {block.block_type === 'list' && `${block.list_items?.length ?? 0} items`}
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-shrink-0 gap-2">
+                                        <button onClick={() => void handleMoveBlock(block.id, 'up')} disabled={i === 0} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 disabled:opacity-30">↑</button>
+                                        <button onClick={() => void handleMoveBlock(block.id, 'down')} disabled={i === contentBlocks.length - 1} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 disabled:opacity-30">↓</button>
+                                        <button onClick={() => void handleDeleteBlock(block.id)} className="rounded-lg border border-red-500/30 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10">✕</button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {showBlockEditor && (
+                                <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-navy/60 p-4">
+                                  <h5 className="text-sm font-semibold text-white">New Block</h5>
+                                  <select
+                                    value={newBlockType}
+                                    onChange={(e) => setNewBlockType(e.target.value as LessonContentBlock['block_type'])}
+                                    className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
+                                  >
+                                    <option value="heading">Heading</option>
+                                    <option value="text">Text Paragraph</option>
+                                    <option value="image">Image</option>
+                                    <option value="video">Video</option>
+                                    <option value="list">List</option>
+                                  </select>
+
+                                  {newBlockType === 'heading' && (
+                                    <input
+                                      value={newBlockHeading}
+                                      onChange={(e) => setNewBlockHeading(e.target.value)}
+                                      placeholder="Heading text"
+                                      className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
+                                    />
+                                  )}
+                                  {newBlockType === 'text' && (
+                                    <textarea
+                                      value={newBlockText}
+                                      onChange={(e) => setNewBlockText(e.target.value)}
+                                      placeholder="Paragraph text"
+                                      className="h-28 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal"
+                                    />
+                                  )}
+                                  {newBlockType === 'image' && (
+                                    <>
+                                      <div className="flex gap-2">
+                                        <input
+                                          value={newBlockImageUrl}
+                                          onChange={(e) => setNewBlockImageUrl(e.target.value)}
+                                          placeholder="Image URL or upload below"
+                                          className="flex-1 rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal"
+                                        />
+                                        <button onClick={() => blockImageInputRef.current?.click()} className="rounded-xl border border-white/10 px-4 py-3 text-sm text-slate-300 hover:text-teal">Upload</button>
+                                      </div>
+                                      <input ref={blockImageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => void handleBlockImageUpload(e.target.files?.[0])} />
+                                      <input
+                                        value={newBlockCaption}
+                                        onChange={(e) => setNewBlockCaption(e.target.value)}
+                                        placeholder="Caption (optional)"
+                                        className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal"
+                                      />
+                                    </>
+                                  )}
+                                  {newBlockType === 'video' && (
+                                    <>
+                                      <input
+                                        value={newBlockVideoUrl}
+                                        onChange={(e) => setNewBlockVideoUrl(e.target.value)}
+                                        placeholder="Video URL (mp4, YouTube embed, etc.)"
+                                        className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal"
+                                      />
+                                      <input
+                                        value={newBlockCaption}
+                                        onChange={(e) => setNewBlockCaption(e.target.value)}
+                                        placeholder="Caption (optional)"
+                                        className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal"
+                                      />
+                                    </>
+                                  )}
+                                  {newBlockType === 'list' && (
+                                    <textarea
+                                      value={newBlockListItems}
+                                      onChange={(e) => setNewBlockListItems(e.target.value)}
+                                      placeholder="One list item per line"
+                                      className="h-28 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal"
+                                    />
+                                  )}
+                                  <button onClick={() => void handleAddBlock()} className="w-full rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">
+                                    Add Block
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </>
                         ) : (

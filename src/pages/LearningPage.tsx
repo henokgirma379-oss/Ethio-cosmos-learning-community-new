@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
+import SecondaryNavbar from '../components/SecondaryNavbar'
 import { getTopics } from '../lib/api'
 import type { Topic } from '../types'
 
@@ -42,9 +43,10 @@ export default function LearningPage() {
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(245,197,66,0.14),_transparent_30%),linear-gradient(180deg,_rgba(5,10,26,0.78),_rgba(5,10,26,0.95))]" />
       <div className="fixed inset-0 bg-space-black/70" />
       <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
+      <SecondaryNavbar />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
-      <main className="relative z-10 mx-auto max-w-7xl animate-fadeIn px-6 pb-20 pt-24">
+      <main className="relative z-10 mx-auto max-w-7xl animate-fadeIn px-6 pb-20 pt-32">
         <section className="py-12">
           <h1 className="font-display text-4xl text-white sm:text-5xl">Explore the Universe</h1>
           <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-300">

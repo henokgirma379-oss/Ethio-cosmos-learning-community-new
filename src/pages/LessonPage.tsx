@@ -4,16 +4,18 @@ import toast from 'react-hot-toast'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
+import SecondaryNavbar from '../components/SecondaryNavbar'
 import { useAuth } from '../context/AuthContext'
 import {
   addBookmark,
   getBookmarkedLessonIds,
   getCompletedLessonIds,
   getLessonBySlugs,
+  getLessonContentBlocks,
   markLessonComplete,
   removeBookmark,
 } from '../lib/api'
-import type { Lesson, Topic } from '../types'
+import type { Lesson, LessonContentBlock, Topic } from '../types'
 
 const links = [
   { label: 'Home', path: '/' },
@@ -23,7 +25,7 @@ const links = [
   { label: 'About', path: '/about' },
 ]
 
-function renderContent(content: string) {
+function renderLegacyContent(content: string) {
   return content.split('\n').map((line, index) => {
     if (line.startsWith('# ')) return <h1 key={index} className="mt-6 font-display text-3xl text-white">{line.replace('# ', '')}</h1>
     if (line.startsWith('## ')) return <h2 key={index} className="mt-6 text-2xl font-semibold text-white">{line.replace('## ', '')}</h2>
@@ -33,12 +35,62 @@ function renderContent(content: string) {
   })
 }
 
+function renderBlock(block: LessonContentBlock) {
+  switch (block.block_type) {
+    case 'heading':
+      return (
+        <h2 key={block.id} className="mt-8 font-display text-2xl font-semibold text-white">
+          {block.heading_text}
+        </h2>
+      )
+    case 'text':
+      return (
+        <p key={block.id} className="mt-4 text-lg leading-8 text-slate-300">
+          {block.text_content}
+        </p>
+      )
+    case 'image':
+      return (
+        <figure key={block.id} className="mt-6">
+          <img
+            src={block.image_url ?? ''}
+            alt={block.caption ?? ''}
+            className="w-full rounded-2xl object-cover"
+          />
+          {block.caption && (
+            <figcaption className="mt-2 text-center text-sm text-slate-400">{block.caption}</figcaption>
+          )}
+        </figure>
+      )
+    case 'list':
+      return (
+        <ul key={block.id} className="mt-4 space-y-1">
+          {(block.list_items ?? []).map((item, i) => (
+            <li key={i} className="ml-6 list-disc text-slate-300">{item}</li>
+          ))}
+        </ul>
+      )
+    case 'video':
+      return (
+        <div key={block.id} className="mt-6">
+          <video controls className="w-full rounded-2xl" src={block.video_url ?? ''} />
+          {block.caption && (
+            <p className="mt-2 text-center text-sm text-slate-400">{block.caption}</p>
+          )}
+        </div>
+      )
+    default:
+      return null
+  }
+}
+
 export default function LessonPage() {
   const { user } = useAuth()
   const { slug = '', lessonSlug = '' } = useParams()
   const [topic, setTopic] = useState<Topic | null>(null)
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
+  const [contentBlocks, setContentBlocks] = useState<LessonContentBlock[]>([])
   const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([])
   const [isBookmarked, setIsBookmarked] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
@@ -52,25 +104,18 @@ export default function LessonPage() {
   }, [slug, lessonSlug])
 
   useEffect(() => {
-    if (!user) {
-      setCompletedLessonIds([])
-      return
-    }
+    if (!lesson) { setContentBlocks([]); return }
+    void getLessonContentBlocks(lesson.id).then(setContentBlocks)
+  }, [lesson])
 
-    void getCompletedLessonIds(user.id).then((ids) => {
-      setCompletedLessonIds(ids)
-    })
+  useEffect(() => {
+    if (!user) { setCompletedLessonIds([]); return }
+    void getCompletedLessonIds(user.id).then(setCompletedLessonIds)
   }, [user])
 
   useEffect(() => {
-    if (!user || !lesson) {
-      setIsBookmarked(false)
-      return
-    }
-
-    void getBookmarkedLessonIds(user.id).then((ids) => {
-      setIsBookmarked(ids.includes(lesson.id))
-    })
+    if (!user || !lesson) { setIsBookmarked(false); return }
+    void getBookmarkedLessonIds(user.id).then((ids) => setIsBookmarked(ids.includes(lesson.id)))
   }, [user, lesson])
 
   const currentIndex = useMemo(() => lessons.findIndex((item) => item.slug === lessonSlug), [lessons, lessonSlug])
@@ -87,18 +132,13 @@ export default function LessonPage() {
 
   const handleBookmarkToggle = async () => {
     if (!lesson) return
-    if (!user) {
-      setLoginOpen(true)
-      return
-    }
-
+    if (!user) { setLoginOpen(true); return }
     if (isBookmarked) {
       await removeBookmark(user.id, lesson.id)
       setIsBookmarked(false)
       toast.success('Bookmark removed.')
       return
     }
-
     await addBookmark(user.id, lesson.id)
     setIsBookmarked(true)
     toast.success('Lesson bookmarked!')
@@ -109,11 +149,12 @@ export default function LessonPage() {
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,200,200,0.1),_transparent_30%),linear-gradient(180deg,_rgba(5,10,26,0.78),_rgba(5,10,26,0.96))]" />
       <div className="fixed inset-0 bg-space-black/70" />
       <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
+      <SecondaryNavbar />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
-
-      <main className="relative z-10 mx-auto max-w-7xl animate-fadeIn px-6 pb-20 pt-20">
+      <main className="relative z-10 mx-auto max-w-7xl animate-fadeIn px-6 pb-20 pt-32">
         <div className="mb-8 text-sm text-slate-400">
-          <Link to="/" className="hover:text-teal">Home</Link> {'>'} <Link to="/learning" className="hover:text-teal">Learning</Link>
+          <Link to="/" className="hover:text-teal">Home</Link> {'>'}{' '}
+          <Link to="/learning" className="hover:text-teal">Learning</Link>
           {topic && <> {'>'} <Link to={`/learning/${topic.slug}`} className="hover:text-teal">{topic.title}</Link></>}
           {lesson && <> {'>'} <span className="text-teal">{lesson.title}</span></>}
         </div>
@@ -124,7 +165,12 @@ export default function LessonPage() {
               <div className="mb-6 inline-flex rounded-full border border-teal/30 bg-teal/10 px-4 py-1 text-sm text-teal">
                 {topic.title}
               </div>
-              <div className="space-y-2">{renderContent(lesson.content)}</div>
+              <h1 className="font-display text-3xl text-white">{lesson.title}</h1>
+              <div className="mt-6 space-y-2">
+                {contentBlocks.length > 0
+                  ? contentBlocks.map(renderBlock)
+                  : renderLegacyContent(lesson.content ?? '')}
+              </div>
               <div className="mt-8 flex flex-wrap gap-3">
                 {user && (
                   isCompleted ? (
@@ -181,7 +227,6 @@ export default function LessonPage() {
           <div className="rounded-2xl bg-deep-navy p-8 text-slate-300">Lesson not found.</div>
         )}
       </main>
-
       <div className="relative z-10">
         <Footer />
       </div>

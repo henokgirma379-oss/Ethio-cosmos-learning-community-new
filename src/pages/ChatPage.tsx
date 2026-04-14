@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
+import SecondaryNavbar from '../components/SecondaryNavbar'
 import OnlineCounter from '../components/OnlineCounter'
 import { useAuth } from '../context/AuthContext'
 import { getOnlineProfiles, getRecentMessages } from '../lib/api'
@@ -202,6 +203,7 @@ export default function ChatPage() {
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(245,197,66,0.1),_transparent_35%),linear-gradient(180deg,_rgba(5,10,26,0.78),_rgba(5,10,26,0.96))]" />
       <div className="fixed inset-0 bg-space-black/70" />
       <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
+      <SecondaryNavbar />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
       {content}
       <div className="relative z-10">
@@ -225,7 +227,7 @@ export default function ChatPage() {
   }
 
   return pageShell(
-    <main className="relative z-10 mx-auto flex min-h-screen max-w-7xl animate-fadeIn gap-6 px-6 pb-8 pt-20">
+    <main className="relative z-10 mx-auto flex min-h-screen max-w-7xl animate-fadeIn gap-6 px-6 pb-8 pt-32">
       <aside className="hidden w-64 rounded-3xl border border-white/10 bg-deep-navy/90 p-5 lg:block">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-xl text-white">Online Now</h2>

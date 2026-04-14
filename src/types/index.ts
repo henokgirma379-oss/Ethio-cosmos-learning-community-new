@@ -126,3 +126,19 @@ export interface Bookmark {
   lesson_id: string
   created_at: string
 }
+
+
+export interface LessonContentBlock {
+  id: string
+  lesson_id: string
+  block_type: 'heading' | 'text' | 'image' | 'list' | 'video'
+  block_order: number
+  text_content: string | null
+  image_url: string | null
+  heading_text: string | null
+  list_items: string[] | null
+  video_url: string | null
+  caption: string | null
+  created_at: string
+  updated_at: string
+}

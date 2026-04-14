@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
+import SecondaryNavbar from '../components/SecondaryNavbar'
 import { getAboutContent } from '../lib/api'
 import type { PageContent } from '../types'
 
@@ -51,9 +52,10 @@ export default function AboutPage() {
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,200,200,0.12),_transparent_30%),linear-gradient(180deg,_rgba(5,10,26,0.76),_rgba(5,10,26,0.95))]" />
       <div className="fixed inset-0 bg-space-black/70" />
       <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
+      <SecondaryNavbar />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
-      <main className="relative z-10 animate-fadeIn pt-20">
+      <main className="relative z-10 animate-fadeIn pt-32">
         <section className="mx-auto max-w-6xl px-6 py-20 text-center">
           <h1 className="font-display text-4xl text-white sm:text-5xl">Inspiring your passion for the cosmos</h1>
           <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-slate-300">

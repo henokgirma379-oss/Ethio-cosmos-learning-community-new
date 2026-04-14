@@ -50,7 +50,7 @@ export default function HomePage() {
       <SecondaryNavbar />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
-      <main className="relative z-10 animate-fadeIn pt-28 md:pt-32">
+      <main className="relative z-10 animate-fadeIn pt-32">
         <section className="mx-auto flex min-h-[70vh] max-w-7xl items-center px-6 py-16">
           <div className="max-w-4xl">
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-teal">EthioCosmos Learning Community</p>

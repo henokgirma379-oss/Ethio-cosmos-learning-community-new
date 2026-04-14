@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
 import Navbar from '../components/Navbar'
+import SecondaryNavbar from '../components/SecondaryNavbar'
 import { getTopicBySlug } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import type { Topic } from '../types'
@@ -80,9 +81,10 @@ export default function QuizPage() {
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(124,92,191,0.12),_transparent_30%),linear-gradient(180deg,_rgba(5,10,26,0.76),_rgba(5,10,26,0.95))]" />
       <div className="fixed inset-0 bg-space-black/70" />
       <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
+      <SecondaryNavbar />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
 
-      <main className="relative z-10 mx-auto max-w-5xl px-6 pb-20 pt-24">
+      <main className="relative z-10 mx-auto max-w-5xl px-6 pb-20 pt-32">
         <div className="rounded-3xl border border-white/10 bg-deep-navy/85 p-8 shadow-xl shadow-black/20">
           <Link to={topic ? `/learning/${topic.slug}` : '/learning'} className="text-sm text-teal hover:text-white">
             ← Back to topic
