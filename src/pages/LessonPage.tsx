@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import Footer from '../components/Footer'
-import LoginModal from '../components/LoginModal'
-import Navbar from '../components/Navbar'
-import SecondaryNavbar from '../components/SecondaryNavbar'
+import PageShell from '../components/PageShell'
+import Card from '../components/Card'
+import Badge from '../components/Badge'
 import { useAuth } from '../context/AuthContext'
 import {
   addBookmark,
@@ -15,15 +14,8 @@ import {
   markLessonComplete,
   removeBookmark,
 } from '../lib/api'
+import { PRIMARY_NAV_LINKS } from '../lib/constants'
 import type { Lesson, LessonContentBlock, Topic } from '../types'
-
-const links = [
-  { label: 'Home', path: '/' },
-  { label: 'Learning', path: '/learning' },
-  { label: 'Materials', path: '/materials' },
-  { label: 'Chat', path: '/chat' },
-  { label: 'About', path: '/about' },
-]
 
 function renderLegacyContent(content: string) {
   return content.split('\n').map((line, index) => {
@@ -52,21 +44,17 @@ function renderBlock(block: LessonContentBlock) {
     case 'image':
       return (
         <figure key={block.id} className="mt-6">
-          <img
-            src={block.image_url ?? ''}
-            alt={block.caption ?? ''}
-            className="w-full rounded-2xl object-cover"
-          />
-          {block.caption && (
-            <figcaption className="mt-2 text-center text-sm text-slate-400">{block.caption}</figcaption>
-          )}
+          <img src={block.image_url ?? ''} alt={block.caption ?? ''} className="w-full rounded-2xl object-cover" />
+          {block.caption && <figcaption className="mt-2 text-center text-sm text-slate-400">{block.caption}</figcaption>}
         </figure>
       )
     case 'list':
       return (
         <ul key={block.id} className="mt-4 space-y-1">
           {(block.list_items ?? []).map((item, i) => (
-            <li key={i} className="ml-6 list-disc text-slate-300">{item}</li>
+            <li key={i} className="ml-6 list-disc text-slate-300">
+              {item}
+            </li>
           ))}
         </ul>
       )
@@ -74,9 +62,7 @@ function renderBlock(block: LessonContentBlock) {
       return (
         <div key={block.id} className="mt-6">
           <video controls className="w-full rounded-2xl" src={block.video_url ?? ''} />
-          {block.caption && (
-            <p className="mt-2 text-center text-sm text-slate-400">{block.caption}</p>
-          )}
+          {block.caption && <p className="mt-2 text-center text-sm text-slate-400">{block.caption}</p>}
         </div>
       )
     default:
@@ -93,7 +79,6 @@ export default function LessonPage() {
   const [contentBlocks, setContentBlocks] = useState<LessonContentBlock[]>([])
   const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([])
   const [isBookmarked, setIsBookmarked] = useState(false)
-  const [loginOpen, setLoginOpen] = useState(false)
 
   useEffect(() => {
     void getLessonBySlugs(slug, lessonSlug).then((data) => {
@@ -104,17 +89,26 @@ export default function LessonPage() {
   }, [slug, lessonSlug])
 
   useEffect(() => {
-    if (!lesson) { setContentBlocks([]); return }
+    if (!lesson) {
+      setContentBlocks([])
+      return
+    }
     void getLessonContentBlocks(lesson.id).then(setContentBlocks)
   }, [lesson])
 
   useEffect(() => {
-    if (!user) { setCompletedLessonIds([]); return }
+    if (!user) {
+      setCompletedLessonIds([])
+      return
+    }
     void getCompletedLessonIds(user.id).then(setCompletedLessonIds)
   }, [user])
 
   useEffect(() => {
-    if (!user || !lesson) { setIsBookmarked(false); return }
+    if (!user || !lesson) {
+      setIsBookmarked(false)
+      return
+    }
     void getBookmarkedLessonIds(user.id).then((ids) => setIsBookmarked(ids.includes(lesson.id)))
   }, [user, lesson])
 
@@ -132,7 +126,10 @@ export default function LessonPage() {
 
   const handleBookmarkToggle = async () => {
     if (!lesson) return
-    if (!user) { setLoginOpen(true); return }
+    if (!user) {
+      toast.error('Please sign in to bookmark lessons.')
+      return
+    }
     if (isBookmarked) {
       await removeBookmark(user.id, lesson.id)
       setIsBookmarked(false)
@@ -145,66 +142,98 @@ export default function LessonPage() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-space-black text-white">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,200,200,0.1),_transparent_30%),linear-gradient(180deg,_rgba(5,10,26,0.78),_rgba(5,10,26,0.96))]" />
-      <div className="fixed inset-0 bg-space-black/70" />
-      <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
-      <SecondaryNavbar />
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+    <PageShell navLinks={PRIMARY_NAV_LINKS} gradientStyle="default">
       <main className="relative z-10 mx-auto max-w-7xl animate-fadeIn px-6 pb-20 pt-32">
+        {/* Breadcrumb */}
         <div className="mb-8 text-sm text-slate-400">
-          <Link to="/" className="hover:text-teal">Home</Link> {'>'}{' '}
-          <Link to="/learning" className="hover:text-teal">Learning</Link>
-          {topic && <> {'>'} <Link to={`/learning/${topic.slug}`} className="hover:text-teal">{topic.title}</Link></>}
-          {lesson && <> {'>'} <span className="text-teal">{lesson.title}</span></>}
+          <Link to="/" className="hover:text-teal">
+            Home
+          </Link>{' '}
+          {'>'}{' '}
+          <Link to="/learning" className="hover:text-teal">
+            Learning
+          </Link>
+          {topic && (
+            <>
+              {' '}
+              {'>'} <Link to={`/learning/${topic.slug}`} className="hover:text-teal">{topic.title}</Link>
+            </>
+          )}
+          {lesson && (
+            <>
+              {' '}
+              {'>'} <span className="text-teal">{lesson.title}</span>
+            </>
+          )}
         </div>
 
         {lesson && topic ? (
           <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
-            <article className="rounded-3xl border border-white/5 bg-deep-navy/90 p-8">
-              <div className="mb-6 inline-flex rounded-full border border-teal/30 bg-teal/10 px-4 py-1 text-sm text-teal">
-                {topic.title}
+            {/* Main Content */}
+            <Card variant="default" borderStyle="default" padding="lg">
+              <div className="mb-6">
+                <Badge variant="teal" size="md">{topic.title}</Badge>
               </div>
               <h1 className="font-display text-3xl text-white">{lesson.title}</h1>
               <div className="mt-6 space-y-2">
-                {contentBlocks.length > 0
-                  ? contentBlocks.map(renderBlock)
-                  : renderLegacyContent(lesson.content ?? '')}
+                {contentBlocks.length > 0 ? contentBlocks.map(renderBlock) : renderLegacyContent(lesson.content ?? '')}
               </div>
+
+              {/* Action Buttons */}
               <div className="mt-8 flex flex-wrap gap-3">
-                {user && (
-                  isCompleted ? (
-                    <button disabled className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">
+                {user &&
+                  (isCompleted ? (
+                    <button
+                      disabled
+                      className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
                       ✓ Completed
                     </button>
                   ) : (
-                    <button onClick={() => void handleMarkComplete()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">
+                    <button
+                      onClick={() => void handleMarkComplete()}
+                      className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950 transition-all duration-200 hover:scale-105 hover:brightness-110"
+                    >
                       ✓ Mark as Complete
                     </button>
-                  )
-                )}
+                  ))}
                 <button
                   onClick={() => void handleBookmarkToggle()}
-                  className={`rounded-lg px-5 py-3 font-semibold transition ${isBookmarked ? 'bg-gold text-slate-950' : 'border border-white/10 bg-navy/60 text-slate-200 hover:border-teal hover:text-teal'}`}
+                  className={`rounded-lg px-5 py-3 font-semibold transition-all duration-200 ${
+                    isBookmarked
+                      ? 'bg-gold text-slate-950 hover:scale-105 hover:brightness-110'
+                      : 'border border-white/10 bg-navy/60 text-slate-200 hover:border-teal hover:text-teal'
+                  }`}
                 >
                   {isBookmarked ? '★ Bookmarked' : '☆ Bookmark this lesson'}
                 </button>
               </div>
+
+              {/* Navigation */}
               <div className="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:justify-between">
                 {previousLesson ? (
-                  <Link to={`/learning/${slug}/${previousLesson.slug}`} className="rounded-lg border border-white/10 px-5 py-3 text-slate-300 hover:border-teal/30 hover:text-teal">
+                  <Link
+                    to={`/learning/${slug}/${previousLesson.slug}`}
+                    className="rounded-lg border border-white/10 px-5 py-3 text-slate-300 transition-all duration-200 hover:border-teal/30 hover:text-teal"
+                  >
                     ← {previousLesson.title}
                   </Link>
-                ) : <div />}
+                ) : (
+                  <div />
+                )}
                 {nextLesson && (
-                  <Link to={`/learning/${slug}/${nextLesson.slug}`} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">
+                  <Link
+                    to={`/learning/${slug}/${nextLesson.slug}`}
+                    className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950 transition-all duration-200 hover:scale-105 hover:brightness-110"
+                  >
                     {nextLesson.title} →
                   </Link>
                 )}
               </div>
-            </article>
+            </Card>
 
-            <aside className="rounded-3xl border border-white/5 bg-deep-navy/90 p-6 lg:sticky lg:top-24 lg:h-fit">
+            {/* Sidebar - Topic Lessons */}
+            <Card variant="default" borderStyle="default" padding="md" className="lg:sticky lg:top-24 lg:h-fit">
               <h3 className="font-display text-xl text-white">Topic Lessons</h3>
               <div className="mt-4 space-y-3">
                 {lessons.map((item, index) => {
@@ -213,23 +242,26 @@ export default function LessonPage() {
                     <Link
                       key={item.id}
                       to={`/learning/${slug}/${item.slug}`}
-                      className={`block rounded-xl px-4 py-3 text-sm transition ${item.slug === lesson.slug ? 'bg-teal/10 text-teal' : 'bg-navy/60 text-slate-300 hover:text-teal'}`}
+                      className={`block rounded-xl px-4 py-3 text-sm transition-all duration-200 ${
+                        item.slug === lesson.slug ? 'bg-teal/10 text-teal' : 'bg-navy/60 text-slate-300 hover:text-teal'
+                      }`}
                     >
-                      <span>{index + 1}. {item.title}</span>
+                      <span>
+                        {index + 1}. {item.title}
+                      </span>
                       {itemCompleted ? <span className="ml-2 text-green-400">✓</span> : null}
                     </Link>
                   )
                 })}
               </div>
-            </aside>
+            </Card>
           </div>
         ) : (
-          <div className="rounded-2xl bg-deep-navy p-8 text-slate-300">Lesson not found.</div>
+          <Card variant="default" borderStyle="default" padding="lg">
+            <div className="text-slate-300">Lesson not found.</div>
+          </Card>
         )}
       </main>
-      <div className="relative z-10">
-        <Footer />
-      </div>
-    </div>
+    </PageShell>
   )
 }
