@@ -37,3 +37,5 @@ export const PRIMARY_NAV_LINKS = [
   { label: 'Chat', path: '/chat' },
   { label: 'About', path: '/about' },
 ]
+
+export const AUTHORIZED_ADMIN_EMAIL = 'henokgirma379@gmail.com'

@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 const links = [
   { label: 'Home', path: '/' },
@@ -9,10 +10,13 @@ const links = [
 ]
 
 export default function SecondaryNavbar() {
+  const { isAdmin } = useAuth()
+  const navLinks = isAdmin ? [...links, { label: 'Admin', path: '/admin' }] : links
+
   return (
     <div className="fixed inset-x-0 top-16 z-40 hidden h-12 border-b border-teal/20 bg-deep-navy/95 md:block">
       <div className="mx-auto flex h-full max-w-7xl items-center justify-center gap-8 px-6">
-        {links.map((link) => (
+        {navLinks.map((link) => (
           <NavLink
             key={link.path}
             to={link.path}
