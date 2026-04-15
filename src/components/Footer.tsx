@@ -20,7 +20,7 @@ export default function Footer() {
         </div>
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-300">Contact</h3>
-          <p className="mt-4 text-sm text-slate-400">henokgirma648@gmail.com</p>
+          <p className="mt-4 text-sm text-slate-400">henokgirma379@gmail.com</p>
         </div>
       </div>
       <div className="border-t border-white/5 px-6 py-4 text-center text-xs text-slate-500">

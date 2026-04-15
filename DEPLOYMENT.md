@@ -47,7 +47,7 @@ For Google OAuth, configure:
 
 The database trigger auto-assigns admin role to:
 
-- `henokgirma648@gmail.com`
+- `henokgirma379@gmail.com`
 
 ## 6. Deploy flow
 

@@ -76,7 +76,7 @@ begin
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
-    case when new.email = 'henokgirma648@gmail.com' then 'admin' else 'user' end
+    case when new.email = 'henokgirma379@gmail.com' then 'admin' else 'user' end
   )
   on conflict (id) do nothing;
 
