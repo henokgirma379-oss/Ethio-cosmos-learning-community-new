@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import Footer from '../components/Footer'
 import LoginModal from '../components/LoginModal'
@@ -10,39 +9,59 @@ import { useAuth } from '../context/AuthContext'
 import { fallbackTopics } from '../data/fallbackData'
 import {
   deleteLessonContentBlock,
+  getHomeContentRows,
   getLessonContentBlocks,
+  getQuizQuestions,
   getSupabaseStatusMessage,
   reorderLessonContentBlocks,
+  reorderQuizQuestions,
   upsertLessonContentBlock,
 } from '../lib/api'
+import { PRIMARY_NAV_LINKS } from '../lib/constants'
+import { fallbackHomeContent, HOME_CONTENT_SECTIONS, mapHomeContentRows, type HomeContentValues } from '../lib/homeContent'
 import { supabase, supabaseConfigError } from '../lib/supabase'
 import type { Lesson, LessonContentBlock, Material, Message, PageContent, QuizQuestion, Topic } from '../types'
 
-const links = [
-  { label: 'Home', path: '/' },
-  { label: 'Learning', path: '/learning' },
-  { label: 'Materials', path: '/materials' },
-  { label: 'Chat', path: '/chat' },
-  { label: 'About', path: '/about' },
-]
-
-const tabs = ['About Page Content', 'Materials Manager', 'Chat Moderation', 'Topic Manager', 'Quiz Manager'] as const
+const tabs = ['Homepage Content', 'About Page Content', 'Materials Manager', 'Chat Moderation', 'Topic Manager', 'Quiz Manager'] as const
 
 type AdminTab = (typeof tabs)[number]
 type MaterialType = 'image' | 'video' | 'pdf'
 type ModerationMessage = Message & { profiles?: { username?: string | null } | null }
-
 type UploadBucket = 'materials'
+type QuizOptionKey = 'a' | 'b' | 'c' | 'd'
+
+type QuizEditorState = {
+  id: string | null
+  question: string
+  option_a: string
+  option_b: string
+  option_c: string
+  option_d: string
+  correct_option: QuizOptionKey
+  explanation: string
+}
 
 const missionFallback = 'Update mission text here...'
 const whoWeAreFallback = 'Update who-we-are content here...'
 
+const emptyQuizEditorState: QuizEditorState = {
+  id: null,
+  question: '',
+  option_a: '',
+  option_b: '',
+  option_c: '',
+  option_d: '',
+  correct_option: 'a',
+  explanation: '',
+}
+
 export default function AdminPage() {
   const { isAdmin } = useAuth()
-  const [activeTab, setActiveTab] = useState<AdminTab>('About Page Content')
+  const [activeTab, setActiveTab] = useState<AdminTab>('Homepage Content')
   const [loginOpen, setLoginOpen] = useState(false)
   const [missionText, setMissionText] = useState(missionFallback)
   const [whoWeAreText, setWhoWeAreText] = useState(whoWeAreFallback)
+  const [homeForm, setHomeForm] = useState<HomeContentValues>(fallbackHomeContent)
   const [topics, setTopics] = useState<Topic[]>(fallbackTopics)
   const [selectedTopic, setSelectedTopic] = useState(fallbackTopics[0]?.slug ?? 'fundamentals')
   const [topicTitle, setTopicTitle] = useState(fallbackTopics[0]?.title ?? '')
@@ -68,12 +87,8 @@ export default function AdminPage() {
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const pdfInputRef = useRef<HTMLInputElement | null>(null)
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([])
-  const [newQuestion, setNewQuestion] = useState('')
-  const [newOptionA, setNewOptionA] = useState('')
-  const [newOptionB, setNewOptionB] = useState('')
-  const [newOptionC, setNewOptionC] = useState('')
-  const [newOptionD, setNewOptionD] = useState('')
-  const [newCorrectOption, setNewCorrectOption] = useState<QuizQuestion['correct_option']>('a')
+  const [quizEditor, setQuizEditor] = useState<QuizEditorState>(emptyQuizEditorState)
+  const [quizValidationErrors, setQuizValidationErrors] = useState<string[]>([])
   const [adminStatusMessage, setAdminStatusMessage] = useState<string | null>(supabaseConfigError)
   const [contentBlocks, setContentBlocks] = useState<LessonContentBlock[]>([])
   const [showBlockEditor, setShowBlockEditor] = useState(false)
@@ -105,6 +120,30 @@ export default function AdminPage() {
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '')
 
+  const handleQuizEditorChange = <K extends keyof QuizEditorState>(field: K, value: QuizEditorState[K]) => {
+    setQuizEditor((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const resetQuizEditor = () => {
+    setQuizEditor(emptyQuizEditorState)
+    setQuizValidationErrors([])
+  }
+
+  const validateQuizEditor = () => {
+    const errors: string[] = []
+
+    if (!quizEditor.question.trim()) errors.push('Question text is required.')
+
+    const optionValues = [quizEditor.option_a, quizEditor.option_b, quizEditor.option_c, quizEditor.option_d].map((value) => value.trim())
+    if (optionValues.some((value) => !value)) errors.push('All four answer options are required.')
+
+    const uniqueOptions = new Set(optionValues.filter(Boolean).map((value) => value.toLowerCase()))
+    if (uniqueOptions.size !== optionValues.filter(Boolean).length) errors.push('Answer options must be unique.')
+
+    setQuizValidationErrors(errors)
+    return errors.length === 0
+  }
+
   useEffect(() => {
     const loadInitialData = async () => {
       if (!supabase) {
@@ -112,10 +151,16 @@ export default function AdminPage() {
         return
       }
 
-      const [{ data: topicsData, error: topicsError }, { data: missionData, error: missionError }, { data: whoWeAreData, error: whoError }] = await Promise.all([
+      const [
+        { data: topicsData, error: topicsError },
+        { data: missionData, error: missionError },
+        { data: whoWeAreData, error: whoError },
+        homeRows,
+      ] = await Promise.all([
         supabase.from('topics').select('*').order('order_index'),
         supabase.from('page_content').select('*').eq('page', 'about').eq('section', 'mission').order('updated_at', { ascending: false }).limit(1),
         supabase.from('page_content').select('*').eq('page', 'about').eq('section', 'who-we-are').order('updated_at', { ascending: false }).limit(1),
+        getHomeContentRows(),
       ])
 
       const initialError = topicsError ?? missionError ?? whoError
@@ -128,10 +173,7 @@ export default function AdminPage() {
       const liveTopics = (topicsData as Topic[] | null) ?? []
       if (liveTopics.length) {
         setTopics(liveTopics)
-        setSelectedTopic((current) => {
-          if (liveTopics.some((topic) => topic.slug === current)) return current
-          return liveTopics[0]?.slug ?? current
-        })
+        setSelectedTopic((current) => (liveTopics.some((topic) => topic.slug === current) ? current : liveTopics[0]?.slug ?? current))
       }
 
       const missionRow = (missionData as PageContent[] | null)?.[0]
@@ -139,6 +181,7 @@ export default function AdminPage() {
 
       if (missionRow?.content) setMissionText(missionRow.content)
       if (whoWeAreRow?.content) setWhoWeAreText(whoWeAreRow.content)
+      setHomeForm(mapHomeContentRows(homeRows))
     }
 
     void loadInitialData()
@@ -153,13 +196,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     const loadLessons = async () => {
-      if (!currentTopic) {
-        setLessons([])
-        setSelectedLessonId('')
-        return
-      }
-
-      if (!supabase) {
+      if (!currentTopic || !supabase) {
         setLessons([])
         setSelectedLessonId('')
         return
@@ -173,13 +210,10 @@ export default function AdminPage() {
 
       const nextLessons = (data as Lesson[] | null) ?? []
       setLessons(nextLessons)
-      setSelectedLessonId((current) => {
-        if (nextLessons.some((item) => item.id === current)) return current
-        return nextLessons[0]?.id ?? ''
-      })
+      setSelectedLessonId((current) => (nextLessons.some((item) => item.id === current) ? current : nextLessons[0]?.id ?? ''))
     }
 
-    if (activeTab === 'Topic Manager') { void loadLessons() }
+    if (activeTab === 'Topic Manager') void loadLessons()
   }, [activeTab, currentTopic])
 
   useEffect(() => {
@@ -209,39 +243,47 @@ export default function AdminPage() {
       }
       setModerationMessages((data as ModerationMessage[] | null) ?? [])
     }
-    if (activeTab === 'Chat Moderation') { void loadModerationMessages() }
+    if (activeTab === 'Chat Moderation') void loadModerationMessages()
   }, [activeTab])
 
   useEffect(() => {
     const loadMaterials = async () => {
-      if (!supabase) { setMaterials([]); return }
-      const { data, error } = await supabase
-        .from('materials')
-        .select('*')
-        .order('created_at', { ascending: false })
-      if (error) { handleSupabaseError(error, 'Unable to load materials.'); return }
+      if (!supabase) {
+        setMaterials([])
+        return
+      }
+      const { data, error } = await supabase.from('materials').select('*').order('created_at', { ascending: false })
+      if (error) {
+        handleSupabaseError(error, 'Unable to load materials.')
+        return
+      }
       setMaterials((data as Material[] | null) ?? [])
     }
-    if (activeTab === 'Materials Manager') { void loadMaterials() }
+    if (activeTab === 'Materials Manager') void loadMaterials()
   }, [activeTab])
 
   useEffect(() => {
-    const loadQuizQuestions = async () => {
-      if (!currentTopic || !supabase) { setQuizQuestions([]); return }
-      const { data, error } = await supabase
-        .from('quiz_questions')
-        .select('*')
-        .eq('topic_id', currentTopic.id)
-        .order('order_index')
-      if (error) { handleSupabaseError(error, 'Unable to load quiz questions.'); return }
-      setQuizQuestions((data as QuizQuestion[] | null) ?? [])
+    const loadQuizManagerQuestions = async () => {
+      if (!currentTopic) {
+        setQuizQuestions([])
+        resetQuizEditor()
+        return
+      }
+
+      const nextQuestions = await getQuizQuestions(currentTopic.id)
+      setQuizQuestions(nextQuestions)
+      resetQuizEditor()
     }
-    if (activeTab === 'Quiz Manager') { void loadQuizQuestions() }
+
+    if (activeTab === 'Quiz Manager') void loadQuizManagerQuestions()
   }, [activeTab, currentTopic])
 
   useEffect(() => {
     const loadBlocks = async () => {
-      if (!selectedLesson || !supabase) { setContentBlocks([]); return }
+      if (!selectedLesson || !supabase) {
+        setContentBlocks([])
+        return
+      }
       const blocks = await getLessonContentBlocks(selectedLesson.id)
       setContentBlocks(blocks)
     }
@@ -276,37 +318,72 @@ export default function AdminPage() {
         { onConflict: 'page,section' },
       )
 
-    if (error) { handleSupabaseError(error, 'Unable to save page content.'); return }
+    if (error) {
+      handleSupabaseError(error, 'Unable to save page content.')
+      return
+    }
     setAdminStatusMessage(getSupabaseStatusMessage())
     toast.success(successMessage)
   }
 
-  const handleSaveTopic = async () => {
-    if (!currentTopic) return
+  const saveHomepageContent = async () => {
     if (!requireSupabaseWrite() || !supabase) return
+
+    const rows = Object.entries(HOME_CONTENT_SECTIONS).map(([key, section]) => ({
+      page: 'home',
+      section,
+      content_type: 'text' as const,
+      content: homeForm[key as keyof HomeContentValues],
+      image_url: null,
+      updated_at: new Date().toISOString(),
+    }))
+
+    const { error } = await supabase.from('page_content').upsert(rows, { onConflict: 'page,section' })
+    if (error) {
+      handleSupabaseError(error, 'Unable to save homepage content.')
+      return
+    }
+
+    setAdminStatusMessage(getSupabaseStatusMessage())
+    toast.success('Homepage content saved.')
+  }
+
+  const handleSaveTopic = async () => {
+    if (!currentTopic || !requireSupabaseWrite() || !supabase) return
 
     const { error } = await supabase
       .from('topics')
       .update({ title: topicTitle, description: topicDescription, difficulty: topicDifficulty })
       .eq('id', currentTopic.id)
 
-    if (error) { handleSupabaseError(error, 'Unable to save topic.'); return }
+    if (error) {
+      handleSupabaseError(error, 'Unable to save topic.')
+      return
+    }
     setAdminStatusMessage(getSupabaseStatusMessage())
-    setTopics((prev) => prev.map((topic) =>
-      topic.id === currentTopic.id
-        ? { ...topic, title: topicTitle, description: topicDescription, difficulty: topicDifficulty }
-        : topic,
-    ))
+    setTopics((prev) => prev.map((topic) => (topic.id === currentTopic.id ? { ...topic, title: topicTitle, description: topicDescription, difficulty: topicDifficulty } : topic)))
     toast.success('Topic saved.')
   }
 
   const handleAddTopic = async () => {
-    if (!newTopicTitle.trim()) { toast.error('Topic title is required.'); return }
-    if (!newTopicDescription.trim()) { toast.error('Topic description is required.'); return }
-    if (!newTopicIcon.trim()) { toast.error('Topic icon is required.'); return }
+    if (!newTopicTitle.trim()) {
+      toast.error('Topic title is required.')
+      return
+    }
+    if (!newTopicDescription.trim()) {
+      toast.error('Topic description is required.')
+      return
+    }
+    if (!newTopicIcon.trim()) {
+      toast.error('Topic icon is required.')
+      return
+    }
     if (!requireSupabaseWrite() || !supabase) return
     const slug = generateSlug(newTopicTitle)
-    if (!slug) { toast.error('Title produced an invalid slug. Use letters and numbers.'); return }
+    if (!slug) {
+      toast.error('Title produced an invalid slug. Use letters and numbers.')
+      return
+    }
     const maxOrderIndex = topics.reduce((max, topic) => Math.max(max, topic.order_index), 0)
     const { data, error } = await supabase
       .from('topics')
@@ -322,7 +399,10 @@ export default function AdminPage() {
       })
       .select()
       .single()
-    if (error) { handleSupabaseError(error, 'Unable to create topic.'); return }
+    if (error) {
+      handleSupabaseError(error, 'Unable to create topic.')
+      return
+    }
     setAdminStatusMessage(getSupabaseStatusMessage())
     const inserted = data as Topic
     setTopics((prev) => [...prev, inserted])
@@ -336,14 +416,14 @@ export default function AdminPage() {
   }
 
   const handleDeleteTopic = async () => {
-    if (!currentTopic) return
-    if (!requireSupabaseWrite() || !supabase) return
-    const confirmed = window.confirm(
-      `Delete "${currentTopic.title}"? This will permanently delete all its lessons and student progress. This cannot be undone.`,
-    )
+    if (!currentTopic || !requireSupabaseWrite() || !supabase) return
+    const confirmed = window.confirm(`Delete "${currentTopic.title}"? This will permanently delete all its lessons and student progress. This cannot be undone.`)
     if (!confirmed) return
     const { error } = await supabase.from('topics').delete().eq('id', currentTopic.id)
-    if (error) { handleSupabaseError(error, 'Unable to delete topic.'); return }
+    if (error) {
+      handleSupabaseError(error, 'Unable to delete topic.')
+      return
+    }
     setAdminStatusMessage(getSupabaseStatusMessage())
     const remaining = topics.filter((topic) => topic.id !== currentTopic.id)
     setTopics(remaining)
@@ -354,29 +434,35 @@ export default function AdminPage() {
   }
 
   const handleSaveLesson = async () => {
-    if (!selectedLesson) return
-    if (!requireSupabaseWrite() || !supabase) return
+    if (!selectedLesson || !requireSupabaseWrite() || !supabase) return
 
-    const { error } = await supabase
-      .from('lessons')
-      .update({ title: lessonTitle, content: lessonContent })
-      .eq('id', selectedLesson.id)
+    const { error } = await supabase.from('lessons').update({ title: lessonTitle, content: lessonContent }).eq('id', selectedLesson.id)
 
-    if (error) { handleSupabaseError(error, 'Unable to save lesson.'); return }
+    if (error) {
+      handleSupabaseError(error, 'Unable to save lesson.')
+      return
+    }
     setAdminStatusMessage(getSupabaseStatusMessage())
-    setLessons((prev) => prev.map((item) =>
-      item.id === selectedLesson.id ? { ...item, title: lessonTitle, content: lessonContent } : item,
-    ))
+    setLessons((prev) => prev.map((item) => (item.id === selectedLesson.id ? { ...item, title: lessonTitle, content: lessonContent } : item)))
     toast.success('Lesson saved.')
   }
 
   const handleAddLesson = async () => {
     if (!currentTopic) return
-    if (!newLessonTitle.trim()) { toast.error('Lesson title is required.'); return }
-    if (!newLessonContent.trim()) { toast.error('Lesson content is required.'); return }
+    if (!newLessonTitle.trim()) {
+      toast.error('Lesson title is required.')
+      return
+    }
+    if (!newLessonContent.trim()) {
+      toast.error('Lesson content is required.')
+      return
+    }
     if (!requireSupabaseWrite() || !supabase) return
     const slug = generateSlug(newLessonTitle)
-    if (!slug) { toast.error('Title produced an invalid slug. Use letters and numbers.'); return }
+    if (!slug) {
+      toast.error('Title produced an invalid slug. Use letters and numbers.')
+      return
+    }
     const maxOrderIndex = lessons.reduce((max, lesson) => Math.max(max, lesson.order_index), 0)
     const { data, error } = await supabase
       .from('lessons')
@@ -390,22 +476,16 @@ export default function AdminPage() {
       })
       .select()
       .single()
-    if (error) { handleSupabaseError(error, 'Unable to create lesson.'); return }
+    if (error) {
+      handleSupabaseError(error, 'Unable to create lesson.')
+      return
+    }
     setAdminStatusMessage(getSupabaseStatusMessage())
     const inserted = data as Lesson
     setLessons((prev) => [...prev, inserted])
     setSelectedLessonId(inserted.id)
-    await supabase
-      .from('topics')
-      .update({ lesson_count: currentTopic.lesson_count + 1 })
-      .eq('id', currentTopic.id)
-    setTopics((prev) =>
-      prev.map((topic) =>
-        topic.id === currentTopic.id
-          ? { ...topic, lesson_count: topic.lesson_count + 1 }
-          : topic,
-      ),
-    )
+    await supabase.from('topics').update({ lesson_count: currentTopic.lesson_count + 1 }).eq('id', currentTopic.id)
+    setTopics((prev) => prev.map((topic) => (topic.id === currentTopic.id ? { ...topic, lesson_count: topic.lesson_count + 1 } : topic)))
     setNewLessonTitle('')
     setNewLessonContent('')
     setNewLessonDuration(10)
@@ -414,36 +494,26 @@ export default function AdminPage() {
   }
 
   const handleDeleteLesson = async () => {
-    if (!selectedLesson || !currentTopic) return
-    if (!requireSupabaseWrite() || !supabase) return
-    const confirmed = window.confirm(
-      `Delete lesson "${selectedLesson.title}"? Student progress for this lesson will also be deleted. This cannot be undone.`,
-    )
+    if (!selectedLesson || !currentTopic || !requireSupabaseWrite() || !supabase) return
+    const confirmed = window.confirm(`Delete lesson "${selectedLesson.title}"? Student progress for this lesson will also be deleted. This cannot be undone.`)
     if (!confirmed) return
     const { error } = await supabase.from('lessons').delete().eq('id', selectedLesson.id)
-    if (error) { handleSupabaseError(error, 'Unable to delete lesson.'); return }
+    if (error) {
+      handleSupabaseError(error, 'Unable to delete lesson.')
+      return
+    }
     setAdminStatusMessage(getSupabaseStatusMessage())
     const remaining = lessons.filter((item) => item.id !== selectedLesson.id)
     setLessons(remaining)
     setSelectedLessonId(remaining[0]?.id ?? '')
     const newCount = Math.max(0, currentTopic.lesson_count - 1)
-    await supabase
-      .from('topics')
-      .update({ lesson_count: newCount })
-      .eq('id', currentTopic.id)
-    setTopics((prev) =>
-      prev.map((topic) =>
-        topic.id === currentTopic.id
-          ? { ...topic, lesson_count: newCount }
-          : topic,
-      ),
-    )
+    await supabase.from('topics').update({ lesson_count: newCount }).eq('id', currentTopic.id)
+    setTopics((prev) => prev.map((topic) => (topic.id === currentTopic.id ? { ...topic, lesson_count: newCount } : topic)))
     toast.success('Lesson deleted.')
   }
 
   const handleMaterialUpload = async (file: File | undefined, type: MaterialType) => {
-    if (!file) return
-    if (!requireSupabaseWrite() || !supabase) return
+    if (!file || !requireSupabaseWrite() || !supabase) return
 
     try {
       const extension = file.name.split('.').pop() ?? 'file'
@@ -461,14 +531,8 @@ export default function AdminPage() {
       if (insertError) throw insertError
       setAdminStatusMessage(getSupabaseStatusMessage())
       toast.success(`${type.toUpperCase()} uploaded successfully.`)
-      const { data: newMaterialData } = await supabase
-        .from('materials')
-        .select('*')
-        .eq('url', publicUrlData.publicUrl)
-        .single()
-      if (newMaterialData) {
-        setMaterials((prev) => [newMaterialData as Material, ...prev])
-      }
+      const { data: newMaterialData } = await supabase.from('materials').select('*').eq('url', publicUrlData.publicUrl).single()
+      if (newMaterialData) setMaterials((prev) => [newMaterialData as Material, ...prev])
     } catch (error) {
       handleSupabaseError(error, `Failed to upload ${type}.`, { bucket: 'materials' })
     }
@@ -476,7 +540,6 @@ export default function AdminPage() {
 
   const handleDeleteMessage = async (messageId: string) => {
     if (!requireSupabaseWrite() || !supabase) return
-
     const { error } = await supabase.from('messages').delete().eq('id', messageId)
     if (error) {
       handleSupabaseError(error, 'Unable to delete message.')
@@ -491,9 +554,7 @@ export default function AdminPage() {
     if (!requireSupabaseWrite() || !supabase) return
     try {
       const storagePath = material.url.split('/storage/v1/object/public/materials/')[1]
-      if (storagePath) {
-        await supabase.storage.from('materials').remove([storagePath])
-      }
+      if (storagePath) await supabase.storage.from('materials').remove([storagePath])
       const { error } = await supabase.from('materials').delete().eq('id', material.id)
       if (error) throw error
       setAdminStatusMessage(getSupabaseStatusMessage())
@@ -504,56 +565,111 @@ export default function AdminPage() {
     }
   }
 
-  const handleAddQuizQuestion = async () => {
-    if (!currentTopic) return
-    if (!newQuestion.trim()) { toast.error('Question text is required.'); return }
-    if (!newOptionA.trim() || !newOptionB.trim() || !newOptionC.trim() || !newOptionD.trim()) {
-      toast.error('All four answer options are required.')
-      return
+  const handleEditQuizQuestion = (question: QuizQuestion) => {
+    setQuizEditor({
+      id: question.id,
+      question: question.question,
+      option_a: question.option_a,
+      option_b: question.option_b,
+      option_c: question.option_c,
+      option_d: question.option_d,
+      correct_option: question.correct_option,
+      explanation: question.explanation ?? '',
+    })
+    setQuizValidationErrors([])
+  }
+
+  const handleSaveQuizQuestion = async () => {
+    if (!currentTopic || !requireSupabaseWrite() || !supabase) return
+    if (!validateQuizEditor()) return
+
+    const payload = {
+      topic_id: currentTopic.id,
+      question: quizEditor.question.trim(),
+      option_a: quizEditor.option_a.trim(),
+      option_b: quizEditor.option_b.trim(),
+      option_c: quizEditor.option_c.trim(),
+      option_d: quizEditor.option_d.trim(),
+      correct_option: quizEditor.correct_option,
+      explanation: quizEditor.explanation.trim() || null,
     }
-    if (!requireSupabaseWrite() || !supabase) return
-    const maxOrderIndex = quizQuestions.reduce((max, q) => Math.max(max, q.order_index), 0)
-    const { data, error } = await supabase
-      .from('quiz_questions')
-      .insert({
-        topic_id: currentTopic.id,
-        question: newQuestion.trim(),
-        option_a: newOptionA.trim(),
-        option_b: newOptionB.trim(),
-        option_c: newOptionC.trim(),
-        option_d: newOptionD.trim(),
-        correct_option: newCorrectOption,
-        order_index: maxOrderIndex + 1,
-      })
-      .select()
-      .single()
-    if (error) { handleSupabaseError(error, 'Unable to add quiz question.'); return }
+
+    if (quizEditor.id) {
+      const { data, error } = await supabase.from('quiz_questions').update(payload).eq('id', quizEditor.id).select().single()
+      if (error) {
+        handleSupabaseError(error, 'Unable to update quiz question.')
+        return
+      }
+      setQuizQuestions((prev) => prev.map((question) => (question.id === quizEditor.id ? (data as QuizQuestion) : question)))
+      toast.success('Quiz question updated.')
+    } else {
+      const maxOrderIndex = quizQuestions.reduce((max, question) => Math.max(max, question.order_index), 0)
+      const { data, error } = await supabase
+        .from('quiz_questions')
+        .insert({ ...payload, order_index: maxOrderIndex + 1 })
+        .select()
+        .single()
+      if (error) {
+        handleSupabaseError(error, 'Unable to add quiz question.')
+        return
+      }
+      setQuizQuestions((prev) => [...prev, data as QuizQuestion])
+      toast.success('Quiz question added.')
+    }
+
     setAdminStatusMessage(getSupabaseStatusMessage())
-    setQuizQuestions((prev) => [...prev, data as QuizQuestion])
-    setNewQuestion('')
-    setNewOptionA('')
-    setNewOptionB('')
-    setNewOptionC('')
-    setNewOptionD('')
-    setNewCorrectOption('a')
-    toast.success('Question added.')
+    resetQuizEditor()
   }
 
   const handleDeleteQuizQuestion = async (questionId: string) => {
     if (!requireSupabaseWrite() || !supabase) return
     const { error } = await supabase.from('quiz_questions').delete().eq('id', questionId)
-    if (error) { handleSupabaseError(error, 'Unable to delete quiz question.'); return }
+    if (error) {
+      handleSupabaseError(error, 'Unable to delete quiz question.')
+      return
+    }
+
+    const remaining = quizQuestions.filter((question) => question.id !== questionId)
+    const reordered = remaining.map((question, index) => ({ ...question, order_index: index + 1 }))
+    setQuizQuestions(reordered)
+    resetQuizEditor()
+
+    try {
+      await reorderQuizQuestions(reordered.map(({ id, order_index }) => ({ id, order_index })))
+    } catch (error) {
+      handleSupabaseError(error, 'Question deleted, but reordering did not finish cleanly.')
+      return
+    }
+
     setAdminStatusMessage(getSupabaseStatusMessage())
-    setQuizQuestions((prev) => prev.filter((q) => q.id !== questionId))
     toast.success('Question deleted.')
   }
 
+  const handleMoveQuizQuestion = async (questionId: string, direction: 'up' | 'down') => {
+    const index = quizQuestions.findIndex((question) => question.id === questionId)
+    if (index === -1) return
+    if (direction === 'up' && index === 0) return
+    if (direction === 'down' && index === quizQuestions.length - 1) return
+
+    const reordered = [...quizQuestions]
+    const swapIndex = direction === 'up' ? index - 1 : index + 1
+    ;[reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]]
+
+    const normalized = reordered.map((question, idx) => ({ ...question, order_index: idx + 1 }))
+    setQuizQuestions(normalized)
+
+    try {
+      await reorderQuizQuestions(normalized.map(({ id, order_index }) => ({ id, order_index })))
+      toast.success('Question order updated.')
+    } catch (error) {
+      handleSupabaseError(error, 'Unable to reorder quiz questions.')
+    }
+  }
+
   const handleAddBlock = async () => {
-    if (!selectedLesson) return
-    if (!requireSupabaseWrite()) return
+    if (!selectedLesson || !requireSupabaseWrite()) return
 
-    const maxOrder = contentBlocks.reduce((max, b) => Math.max(max, b.block_order), -1)
-
+    const maxOrder = contentBlocks.reduce((max, block) => Math.max(max, block.block_order), -1)
     const blockPayload: Parameters<typeof upsertLessonContentBlock>[0] = {
       lesson_id: selectedLesson.id,
       block_type: newBlockType,
@@ -563,7 +679,7 @@ export default function AdminPage() {
       image_url: newBlockType === 'image' ? newBlockImageUrl.trim() : null,
       video_url: newBlockType === 'video' ? newBlockVideoUrl.trim() : null,
       caption: ['image', 'video'].includes(newBlockType) ? newBlockCaption.trim() || null : null,
-      list_items: newBlockType === 'list' ? newBlockListItems.split('\n').map((s) => s.trim()).filter(Boolean) : null,
+      list_items: newBlockType === 'list' ? newBlockListItems.split('\n').map((item) => item.trim()).filter(Boolean) : null,
     }
 
     const inserted = await upsertLessonContentBlock(blockPayload)
@@ -584,21 +700,21 @@ export default function AdminPage() {
   const handleDeleteBlock = async (blockId: string) => {
     if (!requireSupabaseWrite()) return
     await deleteLessonContentBlock(blockId)
-    setContentBlocks((prev) => prev.filter((b) => b.id !== blockId))
+    setContentBlocks((prev) => prev.filter((block) => block.id !== blockId))
     toast.success('Block deleted.')
   }
 
   const handleMoveBlock = async (blockId: string, direction: 'up' | 'down') => {
-    const index = contentBlocks.findIndex((b) => b.id === blockId)
+    const index = contentBlocks.findIndex((block) => block.id === blockId)
     if (direction === 'up' && index === 0) return
     if (direction === 'down' && index === contentBlocks.length - 1) return
 
     const reordered = [...contentBlocks]
     const swapIndex = direction === 'up' ? index - 1 : index + 1
     ;[reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]]
-    const withNewOrder = reordered.map((b, i) => ({ ...b, block_order: i }))
+    const withNewOrder = reordered.map((block, idx) => ({ ...block, block_order: idx }))
     setContentBlocks(withNewOrder)
-    await reorderLessonContentBlocks(withNewOrder.map((b) => ({ id: b.id, block_order: b.block_order })))
+    await reorderLessonContentBlocks(withNewOrder.map((block) => ({ id: block.id, block_order: block.block_order })))
   }
 
   const handleBlockImageUpload = async (file: File | undefined) => {
@@ -610,17 +726,17 @@ export default function AdminPage() {
       const { data: urlData } = supabase.storage.from('materials').getPublicUrl(data.path)
       setNewBlockImageUrl(urlData.publicUrl)
       toast.success('Image uploaded. Review URL below before adding block.')
-    } catch (err) {
-      handleSupabaseError(err, 'Failed to upload block image.')
+    } catch (error) {
+      handleSupabaseError(error, 'Failed to upload block image.')
     }
   }
 
-  if (!isAdmin) return <Navigate to="/" replace />
+  if (!isAdmin) return null
 
   return (
     <div className="relative min-h-screen bg-space-black text-white">
       <StarField />
-      <Navbar links={links} onOpenLogin={() => setLoginOpen(true)} />
+      <Navbar links={PRIMARY_NAV_LINKS} onOpenLogin={() => setLoginOpen(true)} />
       <SecondaryNavbar />
       <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
       <main className="relative z-10 mx-auto grid min-h-screen max-w-7xl animate-fadeIn gap-6 px-6 pb-10 pt-32 lg:grid-cols-[280px_1fr]">
@@ -645,6 +761,68 @@ export default function AdminPage() {
               {adminStatusMessage}
             </div>
           )}
+
+          {activeTab === 'Homepage Content' && (
+            <div className="mt-8 space-y-6 rounded-2xl bg-navy/60 p-5">
+              <p className="text-sm leading-7 text-slate-300">All homepage copy is loaded from the page_content table using page = &quot;home&quot;.</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">Eyebrow</label>
+                  <input value={homeForm.eyebrow} onChange={(event) => setHomeForm((prev) => ({ ...prev, eyebrow: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">Hero subtitle</label>
+                  <input value={homeForm.subtitle} onChange={(event) => setHomeForm((prev) => ({ ...prev, subtitle: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                </div>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-300">Hero title</label>
+                <textarea value={homeForm.title} onChange={(event) => setHomeForm((prev) => ({ ...prev, title: event.target.value }))} className="h-24 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-white outline-none focus:border-teal" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-300">Intro text</label>
+                <textarea value={homeForm.intro} onChange={(event) => setHomeForm((prev) => ({ ...prev, intro: event.target.value }))} className="h-28 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-white outline-none focus:border-teal" />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">Primary CTA label</label>
+                  <input value={homeForm.primaryCtaLabel} onChange={(event) => setHomeForm((prev) => ({ ...prev, primaryCtaLabel: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">Primary CTA path</label>
+                  <input value={homeForm.primaryCtaPath} onChange={(event) => setHomeForm((prev) => ({ ...prev, primaryCtaPath: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">Secondary CTA label</label>
+                  <input value={homeForm.secondaryCtaLabel} onChange={(event) => setHomeForm((prev) => ({ ...prev, secondaryCtaLabel: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">Secondary CTA path</label>
+                  <input value={homeForm.secondaryCtaPath} onChange={(event) => setHomeForm((prev) => ({ ...prev, secondaryCtaPath: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                </div>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">Features section title</label>
+                  <input value={homeForm.featuresTitle} onChange={(event) => setHomeForm((prev) => ({ ...prev, featuresTitle: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">Features section description</label>
+                  <input value={homeForm.featuresDescription} onChange={(event) => setHomeForm((prev) => ({ ...prev, featuresDescription: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">Featured topics title</label>
+                  <input value={homeForm.featuredTopicsTitle} onChange={(event) => setHomeForm((prev) => ({ ...prev, featuredTopicsTitle: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-300">Featured topics description</label>
+                  <input value={homeForm.featuredTopicsDescription} onChange={(event) => setHomeForm((prev) => ({ ...prev, featuredTopicsDescription: event.target.value }))} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                </div>
+              </div>
+              <button onClick={() => void saveHomepageContent()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">Save Homepage Content</button>
+            </div>
+          )}
+
           {activeTab === 'About Page Content' && (
             <div className="mt-8 space-y-8">
               <div className="rounded-2xl bg-navy/60 p-5">
@@ -659,6 +837,7 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+
           {activeTab === 'Materials Manager' && (
             <div className="mt-8 space-y-6">
               <div className="rounded-2xl bg-navy/60 p-5 text-slate-300">
@@ -681,23 +860,17 @@ export default function AdminPage() {
                         <div className="font-semibold text-white">{material.title}</div>
                         <div className="mt-1 text-xs uppercase tracking-widest text-slate-400">{material.type}</div>
                       </div>
-                      <button
-                        onClick={() => void handleDeleteMaterial(material)}
-                        className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-slate-300 hover:border-red-500/50 hover:text-red-400"
-                      >
-                        Delete
-                      </button>
+                      <button onClick={() => void handleDeleteMaterial(material)} className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-slate-300 hover:border-red-500/50 hover:text-red-400">Delete</button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
           )}
+
           {activeTab === 'Chat Moderation' && (
             <div className="mt-8 space-y-4">
-              <div className="rounded-2xl bg-navy/60 p-5 text-slate-300">
-                Moderate chat content, review recent reports, and remove messages when needed.
-              </div>
+              <div className="rounded-2xl bg-navy/60 p-5 text-slate-300">Moderate chat content, review recent reports, and remove messages when needed.</div>
               {moderationMessages.length ? (
                 moderationMessages.map((message) => (
                   <div key={message.id} className="rounded-2xl border border-white/10 bg-deep-navy/70 p-5">
@@ -716,49 +889,26 @@ export default function AdminPage() {
               )}
             </div>
           )}
+
           {activeTab === 'Topic Manager' && currentTopic && (
             <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
               <div className="space-y-4">
                 <div className="rounded-2xl bg-navy/60 p-5">
                   <label className="block text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Select Topic</label>
                   <select value={selectedTopic} onChange={(event) => setSelectedTopic(event.target.value)} className="mt-4 w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal">
-                    {topics.map((topic) => (
-                      <option key={topic.id} value={topic.slug}>{topic.title}</option>
-                    ))}
+                    {topics.map((topic) => <option key={topic.id} value={topic.slug}>{topic.title}</option>)}
                   </select>
-                  <button
-                    onClick={() => setShowNewTopicForm((prev) => !prev)}
-                    className="mt-4 w-full rounded-2xl border border-teal/30 bg-teal/10 px-4 py-3 text-sm font-semibold text-teal"
-                  >
+                  <button onClick={() => setShowNewTopicForm((prev) => !prev)} className="mt-4 w-full rounded-2xl border border-teal/30 bg-teal/10 px-4 py-3 text-sm font-semibold text-teal">
                     {showNewTopicForm ? 'Cancel New Topic' : '+ Add New Topic'}
                   </button>
                 </div>
                 {showNewTopicForm && (
                   <div className="space-y-3 rounded-2xl border border-white/10 bg-deep-navy/70 p-5">
                     <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">New Topic</h4>
-                    <input
-                      value={newTopicTitle}
-                      onChange={(event) => setNewTopicTitle(event.target.value)}
-                      placeholder="Title"
-                      className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
-                    />
-                    <textarea
-                      value={newTopicDescription}
-                      onChange={(event) => setNewTopicDescription(event.target.value)}
-                      placeholder="Description"
-                      className="h-24 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal"
-                    />
-                    <input
-                      value={newTopicIcon}
-                      onChange={(event) => setNewTopicIcon(event.target.value)}
-                      placeholder="Icon emoji e.g. ✨"
-                      className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
-                    />
-                    <select
-                      value={newTopicDifficulty}
-                      onChange={(event) => setNewTopicDifficulty(event.target.value as Topic['difficulty'])}
-                      className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
-                    >
+                    <input value={newTopicTitle} onChange={(event) => setNewTopicTitle(event.target.value)} placeholder="Title" className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                    <textarea value={newTopicDescription} onChange={(event) => setNewTopicDescription(event.target.value)} placeholder="Description" className="h-24 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal" />
+                    <input value={newTopicIcon} onChange={(event) => setNewTopicIcon(event.target.value)} placeholder="Icon emoji e.g. ✨" className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                    <select value={newTopicDifficulty} onChange={(event) => setNewTopicDifficulty(event.target.value as Topic['difficulty'])} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal">
                       <option value="Beginner">Beginner</option>
                       <option value="Intermediate">Intermediate</option>
                       <option value="Advanced">Advanced</option>
@@ -787,44 +937,20 @@ export default function AdminPage() {
                   <div className="mt-6 space-y-4 rounded-2xl border border-white/10 bg-deep-navy/70 p-5">
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Select Lesson</label>
-                      <button
-                        onClick={() => setShowNewLessonForm((prev) => !prev)}
-                        className="rounded-xl border border-teal/30 bg-teal/10 px-3 py-1 text-xs font-semibold text-teal"
-                      >
-                        {showNewLessonForm ? 'Cancel' : '+ New Lesson'}
-                      </button>
+                      <button onClick={() => setShowNewLessonForm((prev) => !prev)} className="rounded-xl border border-teal/30 bg-teal/10 px-3 py-1 text-xs font-semibold text-teal">{showNewLessonForm ? 'Cancel' : '+ New Lesson'}</button>
                     </div>
                     {showNewLessonForm ? (
                       <div className="space-y-3 rounded-2xl border border-white/10 bg-navy/60 p-4">
                         <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">New Lesson</h4>
-                        <input
-                          value={newLessonTitle}
-                          onChange={(event) => setNewLessonTitle(event.target.value)}
-                          placeholder="Lesson title"
-                          className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
-                        />
-                        <textarea
-                          value={newLessonContent}
-                          onChange={(event) => setNewLessonContent(event.target.value)}
-                          placeholder="Lesson content (supports # headings, ## subheadings, - list items)"
-                          className="h-40 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal"
-                        />
-                        <input
-                          type="number"
-                          min={1}
-                          value={newLessonDuration}
-                          onChange={(event) => setNewLessonDuration(Number(event.target.value))}
-                          placeholder="Duration (minutes)"
-                          className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
-                        />
+                        <input value={newLessonTitle} onChange={(event) => setNewLessonTitle(event.target.value)} placeholder="Lesson title" className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
+                        <textarea value={newLessonContent} onChange={(event) => setNewLessonContent(event.target.value)} placeholder="Lesson content (supports # headings, ## subheadings, - list items)" className="h-40 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal" />
+                        <input type="number" min={1} value={newLessonDuration} onChange={(event) => setNewLessonDuration(Number(event.target.value))} placeholder="Duration (minutes)" className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />
                         <button onClick={() => void handleAddLesson()} className="w-full rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">Create Lesson</button>
                       </div>
                     ) : (
                       <>
                         <select value={selectedLessonId} onChange={(event) => setSelectedLessonId(event.target.value)} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal">
-                          {lessons.map((item) => (
-                            <option key={item.id} value={item.id}>{item.title}</option>
-                          ))}
+                          {lessons.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
                         </select>
                         {selectedLesson ? (
                           <>
@@ -837,17 +963,11 @@ export default function AdminPage() {
                             <div className="mt-6 border-t border-white/10 pt-6">
                               <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Content Blocks</h4>
-                                <button
-                                  onClick={() => setShowBlockEditor((prev) => !prev)}
-                                  className="rounded-xl border border-teal/30 bg-teal/10 px-3 py-1 text-xs font-semibold text-teal"
-                                >
-                                  {showBlockEditor ? 'Close Block Editor' : '+ Add Block'}
-                                </button>
+                                <button onClick={() => setShowBlockEditor((prev) => !prev)} className="rounded-xl border border-teal/30 bg-teal/10 px-3 py-1 text-xs font-semibold text-teal">{showBlockEditor ? 'Close Block Editor' : '+ Add Block'}</button>
                               </div>
-
                               {contentBlocks.length > 0 && (
                                 <div className="mt-4 space-y-2">
-                                  {contentBlocks.map((block, i) => (
+                                  {contentBlocks.map((block, index) => (
                                     <div key={block.id} className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-deep-navy/70 px-4 py-3">
                                       <div className="min-w-0 flex-1">
                                         <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">{block.block_type}</div>
@@ -860,93 +980,44 @@ export default function AdminPage() {
                                         </div>
                                       </div>
                                       <div className="flex flex-shrink-0 gap-2">
-                                        <button onClick={() => void handleMoveBlock(block.id, 'up')} disabled={i === 0} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 disabled:opacity-30">↑</button>
-                                        <button onClick={() => void handleMoveBlock(block.id, 'down')} disabled={i === contentBlocks.length - 1} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 disabled:opacity-30">↓</button>
+                                        <button onClick={() => void handleMoveBlock(block.id, 'up')} disabled={index === 0} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 disabled:opacity-30">↑</button>
+                                        <button onClick={() => void handleMoveBlock(block.id, 'down')} disabled={index === contentBlocks.length - 1} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 disabled:opacity-30">↓</button>
                                         <button onClick={() => void handleDeleteBlock(block.id)} className="rounded-lg border border-red-500/30 px-2 py-1 text-xs text-red-400 hover:bg-red-500/10">✕</button>
                                       </div>
                                     </div>
                                   ))}
                                 </div>
                               )}
-
                               {showBlockEditor && (
                                 <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-navy/60 p-4">
                                   <h5 className="text-sm font-semibold text-white">New Block</h5>
-                                  <select
-                                    value={newBlockType}
-                                    onChange={(e) => setNewBlockType(e.target.value as LessonContentBlock['block_type'])}
-                                    className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
-                                  >
+                                  <select value={newBlockType} onChange={(event) => setNewBlockType(event.target.value as LessonContentBlock['block_type'])} className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal">
                                     <option value="heading">Heading</option>
                                     <option value="text">Text Paragraph</option>
                                     <option value="image">Image</option>
                                     <option value="video">Video</option>
                                     <option value="list">List</option>
                                   </select>
-
-                                  {newBlockType === 'heading' && (
-                                    <input
-                                      value={newBlockHeading}
-                                      onChange={(e) => setNewBlockHeading(e.target.value)}
-                                      placeholder="Heading text"
-                                      className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
-                                    />
-                                  )}
-                                  {newBlockType === 'text' && (
-                                    <textarea
-                                      value={newBlockText}
-                                      onChange={(e) => setNewBlockText(e.target.value)}
-                                      placeholder="Paragraph text"
-                                      className="h-28 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal"
-                                    />
-                                  )}
+                                  {newBlockType === 'heading' && <input value={newBlockHeading} onChange={(event) => setNewBlockHeading(event.target.value)} placeholder="Heading text" className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal" />}
+                                  {newBlockType === 'text' && <textarea value={newBlockText} onChange={(event) => setNewBlockText(event.target.value)} placeholder="Paragraph text" className="h-28 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal" />}
                                   {newBlockType === 'image' && (
                                     <>
                                       <div className="flex gap-2">
-                                        <input
-                                          value={newBlockImageUrl}
-                                          onChange={(e) => setNewBlockImageUrl(e.target.value)}
-                                          placeholder="Image URL or upload below"
-                                          className="flex-1 rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal"
-                                        />
+                                        <input value={newBlockImageUrl} onChange={(event) => setNewBlockImageUrl(event.target.value)} placeholder="Image URL or upload below" className="flex-1 rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
                                         <button onClick={() => blockImageInputRef.current?.click()} className="rounded-xl border border-white/10 px-4 py-3 text-sm text-slate-300 hover:text-teal">Upload</button>
                                       </div>
-                                      <input ref={blockImageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => void handleBlockImageUpload(e.target.files?.[0])} />
-                                      <input
-                                        value={newBlockCaption}
-                                        onChange={(e) => setNewBlockCaption(e.target.value)}
-                                        placeholder="Caption (optional)"
-                                        className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal"
-                                      />
+                                      <input ref={blockImageInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => void handleBlockImageUpload(event.target.files?.[0])} />
+                                      <input value={newBlockCaption} onChange={(event) => setNewBlockCaption(event.target.value)} placeholder="Caption (optional)" className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
                                     </>
                                   )}
                                   {newBlockType === 'video' && (
                                     <>
-                                      <input
-                                        value={newBlockVideoUrl}
-                                        onChange={(e) => setNewBlockVideoUrl(e.target.value)}
-                                        placeholder="Video URL (mp4, YouTube embed, etc.)"
-                                        className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal"
-                                      />
-                                      <input
-                                        value={newBlockCaption}
-                                        onChange={(e) => setNewBlockCaption(e.target.value)}
-                                        placeholder="Caption (optional)"
-                                        className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal"
-                                      />
+                                      <input value={newBlockVideoUrl} onChange={(event) => setNewBlockVideoUrl(event.target.value)} placeholder="Video URL (mp4, YouTube embed, etc.)" className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
+                                      <input value={newBlockCaption} onChange={(event) => setNewBlockCaption(event.target.value)} placeholder="Caption (optional)" className="w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
                                     </>
                                   )}
-                                  {newBlockType === 'list' && (
-                                    <textarea
-                                      value={newBlockListItems}
-                                      onChange={(e) => setNewBlockListItems(e.target.value)}
-                                      placeholder="One list item per line"
-                                      className="h-28 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal"
-                                    />
-                                  )}
-                                  <button onClick={() => void handleAddBlock()} className="w-full rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">
-                                    Add Block
-                                  </button>
+                                  {newBlockType === 'list' && <textarea value={newBlockListItems} onChange={(event) => setNewBlockListItems(event.target.value)} placeholder="One list item per line" className="h-28 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-slate-300 outline-none focus:border-teal" />}
+                                  <button onClick={() => void handleAddBlock()} className="w-full rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">Add Block</button>
                                 </div>
                               )}
                             </div>
@@ -961,78 +1032,78 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+
           {activeTab === 'Quiz Manager' && (
             <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
               <div className="rounded-2xl bg-navy/60 p-5">
                 <label className="block text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Select Topic</label>
-                <select
-                  value={selectedTopic}
-                  onChange={(event) => setSelectedTopic(event.target.value)}
-                  className="mt-4 w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal"
-                >
-                  {topics.map((topic) => (
-                    <option key={topic.id} value={topic.slug}>{topic.title}</option>
-                  ))}
+                <select value={selectedTopic} onChange={(event) => setSelectedTopic(event.target.value)} className="mt-4 w-full rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-white outline-none focus:border-teal">
+                  {topics.map((topic) => <option key={topic.id} value={topic.slug}>{topic.title}</option>)}
                 </select>
-                <div className="mt-4 text-sm text-slate-400">
-                  {quizQuestions.length} question{quizQuestions.length !== 1 ? 's' : ''} in this topic
-                </div>
+                <div className="mt-4 text-sm text-slate-400">{quizQuestions.length} question{quizQuestions.length !== 1 ? 's' : ''} in this topic</div>
+                <button onClick={resetQuizEditor} className="mt-4 w-full rounded-lg border border-white/10 px-4 py-3 text-sm font-semibold text-slate-200 hover:border-teal/30 hover:text-teal">Clear Editor</button>
               </div>
               <div className="space-y-6">
-                <div className="rounded-2xl bg-navy/60 p-5 space-y-4">
-                  <h3 className="text-lg font-semibold text-white">Add New Question</h3>
-                  <textarea
-                    value={newQuestion}
-                    onChange={(event) => setNewQuestion(event.target.value)}
-                    placeholder="Question text"
-                    className="h-20 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-white outline-none focus:border-teal"
-                  />
+                <div className="space-y-4 rounded-2xl bg-navy/60 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-white">{quizEditor.id ? 'Edit Question' : 'Add New Question'}</h3>
+                    {quizEditor.id && <span className="rounded-full border border-teal/30 bg-teal/10 px-3 py-1 text-xs font-semibold text-teal">Editing existing question</span>}
+                  </div>
+                  <textarea value={quizEditor.question} onChange={(event) => handleQuizEditorChange('question', event.target.value)} placeholder="Question text" className="h-20 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-white outline-none focus:border-teal" />
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <input value={newOptionA} onChange={(event) => setNewOptionA(event.target.value)} placeholder="Option A" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
-                    <input value={newOptionB} onChange={(event) => setNewOptionB(event.target.value)} placeholder="Option B" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
-                    <input value={newOptionC} onChange={(event) => setNewOptionC(event.target.value)} placeholder="Option C" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
-                    <input value={newOptionD} onChange={(event) => setNewOptionD(event.target.value)} placeholder="Option D" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
+                    <input value={quizEditor.option_a} onChange={(event) => handleQuizEditorChange('option_a', event.target.value)} placeholder="Option A" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
+                    <input value={quizEditor.option_b} onChange={(event) => handleQuizEditorChange('option_b', event.target.value)} placeholder="Option B" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
+                    <input value={quizEditor.option_c} onChange={(event) => handleQuizEditorChange('option_c', event.target.value)} placeholder="Option C" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
+                    <input value={quizEditor.option_d} onChange={(event) => handleQuizEditorChange('option_d', event.target.value)} placeholder="Option D" className="rounded-xl border border-white/10 bg-deep-navy px-4 py-3 text-sm text-white outline-none focus:border-teal" />
                   </div>
                   <div className="flex items-center gap-4">
                     <label className="text-sm text-slate-400">Correct answer:</label>
-                    <select
-                      value={newCorrectOption}
-                      onChange={(event) => setNewCorrectOption(event.target.value as QuizQuestion['correct_option'])}
-                      className="rounded-xl border border-white/10 bg-deep-navy px-4 py-2 text-white outline-none focus:border-teal"
-                    >
+                    <select value={quizEditor.correct_option} onChange={(event) => handleQuizEditorChange('correct_option', event.target.value as QuizOptionKey)} className="rounded-xl border border-white/10 bg-deep-navy px-4 py-2 text-white outline-none focus:border-teal">
                       <option value="a">A</option>
                       <option value="b">B</option>
                       <option value="c">C</option>
                       <option value="d">D</option>
                     </select>
                   </div>
-                  <button onClick={() => void handleAddQuizQuestion()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">
-                    Add Question
-                  </button>
+                  <textarea value={quizEditor.explanation} onChange={(event) => handleQuizEditorChange('explanation', event.target.value)} placeholder="Explanation shown after answering (optional but recommended)" className="h-24 w-full rounded-2xl border border-white/10 bg-deep-navy p-4 text-sm text-white outline-none focus:border-teal" />
+                  {quizValidationErrors.length > 0 && (
+                    <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">
+                      <ul className="list-disc space-y-1 pl-5">
+                        {quizValidationErrors.map((error) => <li key={error}>{error}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-3">
+                    <button onClick={() => void handleSaveQuizQuestion()} className="rounded-lg bg-teal px-5 py-3 font-semibold text-slate-950">{quizEditor.id ? 'Update Question' : 'Add Question'}</button>
+                    {quizEditor.id && <button onClick={resetQuizEditor} className="rounded-lg border border-white/10 px-5 py-3 font-semibold text-slate-200">Cancel Edit</button>}
+                  </div>
                 </div>
                 {quizQuestions.length > 0 && (
                   <div className="space-y-3">
                     <h3 className="text-lg font-semibold text-white">Existing Questions</h3>
-                    {quizQuestions.map((q, index) => (
-                      <div key={q.id} className="rounded-2xl border border-white/10 bg-deep-navy/70 p-5">
+                    {quizQuestions.map((question, index) => (
+                      <div key={question.id} className="rounded-2xl border border-white/10 bg-deep-navy/70 p-5">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
-                            <div className="text-sm font-semibold uppercase tracking-widest text-slate-400">Q{index + 1}</div>
-                            <div className="mt-1 text-white">{q.question}</div>
+                            <div className="text-sm font-semibold uppercase tracking-widest text-slate-400">Question {index + 1} · Order {question.order_index}</div>
+                            <div className="mt-1 text-white">{question.question}</div>
                             <div className="mt-3 grid gap-1 text-sm">
-                              {(['a', 'b', 'c', 'd'] as const).map((opt) => (
-                                <div key={opt} className={`rounded-lg px-3 py-1.5 ${q.correct_option === opt ? 'bg-teal/20 text-teal' : 'text-slate-400'}`}>
-                                  <span className="font-semibold uppercase">{opt}.</span> {q[`option_${opt}` as keyof QuizQuestion] as string}
+                              {(['a', 'b', 'c', 'd'] as const).map((optionKey) => (
+                                <div key={optionKey} className={`rounded-lg px-3 py-1.5 ${question.correct_option === optionKey ? 'bg-teal/20 text-teal' : 'text-slate-400'}`}>
+                                  <span className="font-semibold uppercase">{optionKey}.</span> {question[`option_${optionKey}`]}
                                 </div>
                               ))}
                             </div>
+                            <div className="mt-3 rounded-xl bg-navy/60 p-3 text-sm text-slate-300">
+                              <span className="font-semibold text-white">Explanation:</span> {question.explanation?.trim() || 'No explanation added yet.'}
+                            </div>
                           </div>
-                          <button
-                            onClick={() => void handleDeleteQuizQuestion(q.id)}
-                            className="flex-shrink-0 rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-slate-400 hover:border-red-500/30 hover:text-red-400"
-                          >
-                            Delete
-                          </button>
+                          <div className="flex flex-col gap-2">
+                            <button onClick={() => handleEditQuizQuestion(question)} className="rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-teal/30 hover:text-teal">Edit</button>
+                            <button onClick={() => void handleMoveQuizQuestion(question.id, 'up')} disabled={index === 0} className="rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-slate-300 disabled:opacity-40">Move Up</button>
+                            <button onClick={() => void handleMoveQuizQuestion(question.id, 'down')} disabled={index === quizQuestions.length - 1} className="rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-slate-300 disabled:opacity-40">Move Down</button>
+                            <button onClick={() => void handleDeleteQuizQuestion(question.id)} className="rounded-lg border border-red-500/30 px-3 py-2 text-sm font-semibold text-red-400 hover:bg-red-500/10">Delete</button>
+                          </div>
                         </div>
                       </div>
                     ))}

@@ -1,5 +1,6 @@
 import { fallbackAboutContent, fallbackLessons, fallbackMaterials, fallbackTopics, fallbackArticles, fallbackScientists, fallbackResources } from '../data/fallbackData'
 import type { Lesson, LessonContentBlock, Material, Message, PageContent, Profile, QuizAttempt, QuizQuestion, Topic, Article, Scientist, Resource } from '../types'
+import { fallbackHomeContent, HOME_CONTENT_SECTIONS, mapHomeContentRows, type HomeContentValues } from './homeContent'
 import { supabase, supabaseConfigError } from './supabase'
 
 const wait = (ms = 200) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -97,6 +98,39 @@ export async function getAboutContent(section: string): Promise<PageContent[]> {
   return pageContent.length ? pageContent : fallbackAboutContent[section] ?? []
 }
 
+export async function getHomeContentRows(): Promise<PageContent[]> {
+  if (!supabase) {
+    await wait()
+    return Object.entries(HOME_CONTENT_SECTIONS).map(([key, section], index) => ({
+      id: index + 100,
+      page: 'home',
+      section,
+      content_type: 'text',
+      content: fallbackHomeContent[key as keyof HomeContentValues],
+      image_url: null,
+      updated_at: new Date().toISOString(),
+    }))
+  }
+
+  const { data, error } = await supabase
+    .from('page_content')
+    .select('*')
+    .eq('page', 'home')
+    .order('id')
+
+  if (error) {
+    logSupabaseError('getHomeContentRows', error, { allowFallback: true, table: 'page_content' })
+    return []
+  }
+
+  return (data as PageContent[] | null) ?? []
+}
+
+export async function getHomeContent(): Promise<HomeContentValues> {
+  const rows = await getHomeContentRows()
+  return mapHomeContentRows(rows)
+}
+
 export async function getMaterials(type?: Material['type']): Promise<Material[]> {
   if (!supabase) {
     await wait()
@@ -192,6 +226,21 @@ export async function getQuizQuestions(topicId: string): Promise<QuizQuestion[]>
     return []
   }
   return (data as QuizQuestion[] | null) ?? []
+}
+
+export async function reorderQuizQuestions(questions: Pick<QuizQuestion, 'id' | 'order_index'>[]): Promise<void> {
+  if (!supabase) return
+
+  for (const question of questions) {
+    const { error } = await supabase
+      .from('quiz_questions')
+      .update({ order_index: question.order_index })
+      .eq('id', question.id)
+
+    if (error) {
+      throw new Error(`Unable to reorder quiz questions: ${error.message}`)
+    }
+  }
 }
 
 export async function getQuizAttempt(userId: string, topicId: string): Promise<QuizAttempt | null> {

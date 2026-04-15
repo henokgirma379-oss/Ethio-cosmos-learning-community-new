@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
 import type { Profile } from '../types'
+import { AUTHORIZED_ADMIN_EMAIL } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 
 interface AuthContextType {
@@ -152,7 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       loading,
       authMessage,
-      isAdmin: profile?.role === 'admin',
+      isAdmin: user?.email === AUTHORIZED_ADMIN_EMAIL,
       signInWithGoogle,
       signInWithEmail,
       signUpWithEmail,

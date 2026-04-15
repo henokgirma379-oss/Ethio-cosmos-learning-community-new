@@ -2,27 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import PageShell from '../components/PageShell'
 import Card from '../components/Card'
-import { getTopicBySlug } from '../lib/api'
-import { supabase } from '../lib/supabase'
+import { getQuizQuestions, getTopicBySlug, saveQuizAttempt } from '../lib/api'
 import { PRIMARY_NAV_LINKS } from '../lib/constants'
 import { useAuth } from '../context/AuthContext'
-import type { Topic } from '../types'
-
-type QuizQuestion = {
-  id: string
-  topic_id: string
-  question: string
-  options: string[]
-  correct_answer: string
-  explanation?: string | null
-}
+import type { QuizQuestion, Topic } from '../types'
 
 export default function QuizPage() {
   const { slug = '' } = useParams()
   const { user } = useAuth()
   const [topic, setTopic] = useState<Topic | null>(null)
   const [questions, setQuestions] = useState<QuizQuestion[]>([])
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [answers, setAnswers] = useState<Record<string, QuizQuestion['correct_option']>>({})
   const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
@@ -30,43 +20,31 @@ export default function QuizPage() {
       const topicData = await getTopicBySlug(slug)
       setTopic(topicData)
 
-      if (!topicData || !supabase) {
+      if (!topicData) {
         setQuestions([])
         return
       }
 
-      const { data } = await supabase.from('quiz_questions').select('*').eq('topic_id', topicData.id)
-
-      const parsed = ((data ?? []) as Array<QuizQuestion & { options: string[] | string }>).map((item) => ({
-        ...item,
-        options: Array.isArray(item.options) ? item.options : [],
-      }))
-      setQuestions(parsed)
+      const nextQuestions = await getQuizQuestions(topicData.id)
+      setQuestions(nextQuestions)
     }
 
     void loadQuiz()
   }, [slug])
 
   const score = useMemo(
-    () => questions.reduce((total, question) => total + (answers[question.id] === question.correct_answer ? 1 : 0), 0),
+    () => questions.reduce((total, question) => total + (answers[question.id] === question.correct_option ? 1 : 0), 0),
     [answers, questions],
   )
 
   useEffect(() => {
-    if (!submitted || !user || !topic || !supabase) return
-
-    void supabase.from('quiz_attempts').insert({
-      user_id: user.id,
-      topic_id: topic.id,
-      score,
-      total_questions: questions.length,
-    })
+    if (!submitted || !user || !topic || !questions.length) return
+    void saveQuizAttempt(user.id, topic.id, score, questions.length)
   }, [submitted, user, topic, score, questions.length])
 
   return (
     <PageShell navLinks={PRIMARY_NAV_LINKS} gradientStyle="default">
       <main className="relative z-10 mx-auto max-w-5xl px-6 pb-20 pt-32">
-        {/* Header */}
         <Card variant="default" borderStyle="default" padding="lg">
           <Link to={topic ? `/learning/${topic.slug}` : '/learning'} className="text-sm text-teal transition-colors duration-200 hover:text-white">
             ← Back to topic
@@ -77,7 +55,6 @@ export default function QuizPage() {
           </p>
         </Card>
 
-        {/* Questions */}
         <section className="mt-8 space-y-6">
           {questions.length ? (
             questions.map((question, index) => (
@@ -86,15 +63,17 @@ export default function QuizPage() {
                   {index + 1}. {question.question}
                 </h2>
                 <div className="mt-4 grid gap-3">
-                  {question.options.map((option) => {
-                    const selected = answers[question.id] === option
-                    const isCorrect = submitted && option === question.correct_answer
-                    const isWrong = submitted && selected && option !== question.correct_answer
+                  {(['a', 'b', 'c', 'd'] as const).map((optionKey) => {
+                    const optionText = question[`option_${optionKey}`]
+                    const selected = answers[question.id] === optionKey
+                    const isCorrect = submitted && optionKey === question.correct_option
+                    const isWrong = submitted && selected && optionKey !== question.correct_option
+
                     return (
                       <button
-                        key={option}
+                        key={optionKey}
                         type="button"
-                        onClick={() => !submitted && setAnswers((prev) => ({ ...prev, [question.id]: option }))}
+                        onClick={() => !submitted && setAnswers((prev) => ({ ...prev, [question.id]: optionKey }))}
                         className={`rounded-2xl border px-4 py-3 text-left transition-all duration-200 ${
                           isCorrect
                             ? 'border-green-400 bg-green-500/10 text-green-300'
@@ -105,7 +84,8 @@ export default function QuizPage() {
                                 : 'border-white/10 bg-navy/60 text-slate-200 hover:border-teal/30 hover:text-teal'
                         }`}
                       >
-                        {option}
+                        <span className="mr-2 font-semibold uppercase">{optionKey}.</span>
+                        {optionText}
                       </button>
                     )
                   })}
@@ -122,14 +102,11 @@ export default function QuizPage() {
           )}
         </section>
 
-        {/* Submit/Results */}
         {questions.length > 0 && (
           <Card variant="default" borderStyle="default" padding="md" className="mt-8">
             {submitted ? (
               <div>
-                <h3 className="font-display text-2xl text-gold">
-                  Your score: {score} / {questions.length}
-                </h3>
+                <h3 className="font-display text-2xl text-gold">Your score: {score} / {questions.length}</h3>
                 <button
                   type="button"
                   onClick={() => {
